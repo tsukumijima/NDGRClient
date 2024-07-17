@@ -6,6 +6,9 @@ authors = ["tsukumi <tsukumijima@users.noreply.github.com>"]
 license = "MIT"
 readme = "Readme.md"
 
+[tool.taskipy.tasks]
+generate-proto = "find proto -name '*.proto' | xargs protoc --proto_path=proto --python_out=ndgr_client/proto --mypy_out=ndgr_client/proto"
+
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
 pydantic = "^2.8.2"
@@ -13,7 +16,10 @@ typer = {version = "^0.12.3", extras = ["all"]}
 typing-extensions = "^4.12.2"
 
 [tool.poetry.group.dev.dependencies]
-pyinstaller = "^5.13.2"
+protobuf = "^5.27.2"
+protoc-wheel-0 = "^27.0"
+mypy-protobuf = "^3.6.0"
+taskipy = "^1.13.0"
 
 [build-system]
 requires = ["poetry-core"]

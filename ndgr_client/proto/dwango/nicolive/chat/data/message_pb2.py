@@ -22,8 +22,8 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
-from dwango.nicolive.chat.data import atoms_pb2 as dwango_dot_nicolive_dot_chat_dot_data_dot_atoms__pb2
-from dwango.nicolive.chat.data.atoms import moderator_pb2 as dwango_dot_nicolive_dot_chat_dot_data_dot_atoms_dot_moderator__pb2
+from ndgr_client.proto.dwango.nicolive.chat.data import atoms_pb2 as dwango_dot_nicolive_dot_chat_dot_data_dot_atoms__pb2
+from ndgr_client.proto.dwango.nicolive.chat.data.atoms import moderator_pb2 as dwango_dot_nicolive_dot_chat_dot_data_dot_atoms_dot_moderator__pb2
 
 
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\'dwango/nicolive/chat/data/message.proto\x12\x19\x64wango.nicolive.chat.data\x1a%dwango/nicolive/chat/data/atoms.proto\x1a/dwango/nicolive/chat/data/atoms/moderator.proto\"\xde\x04\n\x0fNicoliveMessage\x12/\n\x04\x63hat\x18\x01 \x01(\x0b\x32\x1f.dwango.nicolive.chat.data.ChatH\x00\x12L\n\x13simple_notification\x18\x07 \x01(\x0b\x32-.dwango.nicolive.chat.data.SimpleNotificationH\x00\x12/\n\x04gift\x18\x08 \x01(\x0b\x32\x1f.dwango.nicolive.chat.data.GiftH\x00\x12\x33\n\x06nicoad\x18\t \x01(\x0b\x32!.dwango.nicolive.chat.data.NicoadH\x00\x12<\n\x0bgame_update\x18\r \x01(\x0b\x32%.dwango.nicolive.chat.data.GameUpdateH\x00\x12<\n\x0btag_updated\x18\x11 \x01(\x0b\x32%.dwango.nicolive.chat.data.TagUpdatedH\x00\x12N\n\x11moderator_updated\x18\x12 \x01(\x0b\x32\x31.dwango.nicolive.chat.data.atoms.ModeratorUpdatedH\x00\x12\x44\n\x0cssng_updated\x18\x13 \x01(\x0b\x32,.dwango.nicolive.chat.data.atoms.SSNGUpdatedH\x00\x12:\n\x0foverflowed_chat\x18\x14 \x01(\x0b\x32\x1f.dwango.nicolive.chat.data.ChatH\x00\x42\x06\n\x04\x64\x61taJ\x04\x08\x02\x10\x07J\x04\x08\n\x10\rJ\x04\x08\x0e\x10\x11\x62\x06proto3')

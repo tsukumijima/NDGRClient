@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "ndgr-client"
+version = "0.1.0"
+description = "Niconico NDGR Client"
+authors = ["tsukumi <tsukumijima@users.noreply.github.com>"]
+license = "MIT"
+readme = "Readme.md"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+pydantic = "^2.8.2"
+typer = {version = "^0.12.3", extras = ["all"]}
+typing-extensions = "^4.12.2"
+
+[tool.poetry.group.dev.dependencies]
+pyinstaller = "^5.13.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

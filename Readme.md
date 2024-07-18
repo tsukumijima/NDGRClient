@@ -21,7 +21,7 @@
 >
 > …つまり、**ニコニコ生放送 (Re:仮) は単なる使い捨ての仮説システムではなく、まだ作りかけだった「新ニコ生」を既存の開発資産と合わせながら間に合わせで動かしている代物と考えられます。**  
 > **そして現在運用されている NDGR サーバー経由でのコメント受信ロジックは、「新ニコ生」公開後も継続される可能性が高いです。**  
-> その証拠に、従来の WebSocket API から受信していたアンケートや視聴統計情報が、[NDGR サーバーから送られてくる Protobuf メッセージとして定義](https://github.com/n-air-app/nicolive-comment-protobuf/blob/main/proto/dwango/nicolive/chat/data/atoms.proto) されていることが確認できます。  
+> その証拠に、従来は WebSocket API から受信していたアンケートや視聴統計情報が、[NDGR サーバーから送られてくる Protobuf メッセージとして定義](https://github.com/n-air-app/nicolive-comment-protobuf/blob/main/proto/dwango/nicolive/chat/data/atoms.proto) されていることが確認できます。  
 > 
 > …要は「NDGR サーバーのクライアント実装はニコニコ生放送 (Re:仮) 終了後も多少手直しすれば引き続き使える (無駄にはならない) だろう」と賭けて、実装してみた次第です。
 

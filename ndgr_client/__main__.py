@@ -20,7 +20,7 @@ async def stream(jikkyo_id: str):
     await ndgr_client.streamComments(callback)
 
 
-@app.command(help='Download backward comments from NDGR server.')
+@app.command(help='Download backward comments (kakolog) from NDGR server.')
 def download_kakolog():
     pass
 

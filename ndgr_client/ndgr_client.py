@@ -11,9 +11,11 @@ from rich.style import Style
 from typing import Awaitable, Callable, Type, TypeVar
 
 from ndgr_client.protobuf_stream_reader import ProtobufStreamReader
+from ndgr_client.proto.dwango.nicolive.chat.data import atoms_pb2 as atoms
 from ndgr_client.proto.dwango.nicolive.chat.service.edge import payload_pb2 as chat
 from ndgr_client.schemas import (
     NDGRComment,
+    NDGRCommentFullColor,
     NicoLiveProgramInfo,
 )
 
@@ -137,15 +139,8 @@ class NDGRClient:
                             if not message.HasField('meta') or not message.HasField('message'):
                                 return
 
-                            # Pydantic モデルに変換してコールバック関数に返す
-                            callback(NDGRComment(
-                                id = message.meta.id,
-                                at = datetime.fromtimestamp(float(f'{message.meta.at.seconds}.{message.meta.at.nanos}')),
-                                live_id = message.meta.origin.chat.live_id,
-                                content = message.message.chat.content,
-                                vpos = message.message.chat.vpos,
-                                hashed_user_id = message.message.chat.hashed_user_id,
-                            ))
+                            # 取り回しやすいように NDGRComment Pydantic モデルに変換した上で、コールバック関数に渡す
+                            callback(self.convertToNDGRComment(message))
 
                         # NDGR Segment API から ChunkedMessage の受信を開始 (受信が完了するまで非同期にブロックする)
                         await self.readProtobufStream(segment.uri, chat.ChunkedMessage, message_callback)
@@ -261,3 +256,43 @@ class NDGRClient:
                     protobuf = protobuf_class()
                     protobuf.ParseFromString(message)
                     await chunk_callback(protobuf)
+
+
+    @staticmethod
+    def convertToNDGRComment(chunked_message: chat.ChunkedMessage) -> NDGRComment:
+        """
+        ChunkedMessage を取り回しやすいように NDGRComment Pydantic モデルに変換する
+
+        Args:
+            chunked_message (chat.ChunkedMessage): ChunkedMessage
+
+        Returns:
+            NDGRComment: NDGRComment
+        """
+
+        assert chunked_message.HasField('message')
+        assert chunked_message.message.HasField('chat')
+        assert chunked_message.message.chat.HasField('modifier')
+
+        comment = NDGRComment(
+            id = chunked_message.meta.id,
+            at = datetime.fromtimestamp(float(f'{chunked_message.meta.at.seconds}.{chunked_message.meta.at.nanos}')),
+            live_id = chunked_message.meta.origin.chat.live_id,
+            hashed_user_id = chunked_message.message.chat.hashed_user_id,
+            vpos = chunked_message.message.chat.vpos,
+            position = atoms.Chat.Modifier.Pos.Name(chunked_message.message.chat.modifier.position).lower(),  # type: ignore
+            size = atoms.Chat.Modifier.Size.Name(chunked_message.message.chat.modifier.size).lower(),  # type: ignore
+            font = atoms.Chat.Modifier.Font.Name(chunked_message.message.chat.modifier.font).lower(),  # type: ignore
+            opacity = atoms.Chat.Modifier.Opacity.Name(chunked_message.message.chat.modifier.opacity),  # type: ignore
+            content = chunked_message.message.chat.content,
+        )
+        if chunked_message.message.chat.modifier.HasField('named_color'):
+            comment.color = atoms.Chat.Modifier.ColorName.Name(chunked_message.message.chat.modifier.named_color).lower()  # type: ignore
+        elif chunked_message.message.chat.modifier.HasField('full_color'):
+            comment.color = NDGRCommentFullColor(
+                r = chunked_message.message.chat.modifier.full_color.r,
+                g = chunked_message.message.chat.modifier.full_color.g,
+                b = chunked_message.message.chat.modifier.full_color.b
+            )
+
+        return comment

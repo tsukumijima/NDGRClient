@@ -1,6 +1,8 @@
+from __future__ import annotations
 
 from datetime import datetime
 from pydantic import BaseModel
+from typing import Literal, Union
 
 
 class NicoLiveProgramInfo(BaseModel):
@@ -46,9 +48,29 @@ class NDGRComment(BaseModel):
     at: datetime
     # 生放送 ID (?) / ex: 345479473
     live_id: int
-    # コメント内容
-    content: str
-    # vposBaseTime から起算したコメント投稿時刻の相対時間 (1/100 秒単位) / ex: 18336492
-    vpos: int
     # ハッシュ化されたユーザー ID / ex: "i:QKQvAEkmnovz"
     hashed_user_id: str
+    # vposBaseTime から起算したコメント投稿時刻の相対時間 (1/100 秒単位) / ex: 18336492
+    vpos: int
+    # コメントの描画位置
+    position: Literal['naka', 'shita', 'ue'] = 'naka'
+    # コメントの描画サイズ
+    size: Literal['medium', 'small', 'big'] = 'medium'
+    # コメントの描画色
+    color: Union[
+        Literal[
+            'white', 'red', 'pink', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'black',
+            'white2', 'red2', 'pink2', 'orange2', 'yellow2', 'green2', 'cyan2', 'blue2', 'purple2', 'black2'
+        ],
+        NDGRCommentFullColor
+    ] = 'white'
+    # コメントのフォントスタイル
+    font: Literal['defont', 'mincho', 'gothic'] = 'defont'
+    # コメントの不透明度
+    opacity: Literal['Normal', 'Translucent'] = 'Normal'
+    # コメント内容
+    content: str
+class NDGRCommentFullColor(BaseModel):
+    r: int
+    g: int
+    b: int

@@ -64,7 +64,7 @@ class NDGRClient:
 
         self.jikkyo_id = jikkyo_id
         self.rekari_id = self.JIKKYO_ID_TO_REKARI_ID_MAP[jikkyo_id]
-        self.show_log = show_log
+        self.verbose = show_log
 
         # httpx の非同期 HTTP クライアントのインスタンスを作成
         self.httpx_client = httpx.AsyncClient(
@@ -220,8 +220,9 @@ class NDGRClient:
 
         # NDGR Backward API から過去のコメントを PackedSegment 型で取得
         while True:
-            print(f'Retrieving {backward_api_uri} ...')
-            print(Rule(characters='-', style=Style(color='#E33157')))
+            if self.verbose:
+                print(f'Retrieving {backward_api_uri} ...')
+                print(Rule(characters='-', style=Style(color='#E33157')))
             response = await self.httpx_client.get(backward_api_uri)
             response.raise_for_status()
             packed_segment = chat.PackedSegment()
@@ -235,8 +236,9 @@ class NDGRClient:
                 # 取り回しやすいように NDGRComment Pydantic モデルに変換
                 comment = self.convertToNDGRComment(chunked_message)
                 temp_comments.append(comment)
-                print(comment)
-                print(Rule(characters='-', style=Style(color='#E33157')))
+                if self.verbose:
+                    print(comment)
+                    print(Rule(characters='-', style=Style(color='#E33157')))
 
             # 現在の comments の前側に temp_comments の内容を連結
             comments = temp_comments + comments
@@ -281,7 +283,7 @@ class NDGRClient:
         assert 'program' in embedded_data
         assert 'temporaryMeasure' in embedded_data
 
-        return NicoLiveProgramInfo(
+        program_info = NicoLiveProgramInfo(
             title = embedded_data['program']['title'],
             description = embedded_data['program']['description'],
             status = embedded_data['program']['status'],
@@ -295,6 +297,14 @@ class NDGRClient:
             ndgrProgramCommentViewUri = embedded_data['temporaryMeasure']['ndgrProgramCommentViewUri'],
             ndgrProgramCommentPostUri = embedded_data['temporaryMeasure']['ndgrProgramCommentPostUri'],
         )
+        if self.verbose:
+            print(f'Title:  {program_info.title} [{program_info.status}]')
+            print(f'Period: {datetime.fromtimestamp(program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
+              f'{datetime.fromtimestamp(program_info.scheduledEndTime).strftime("%Y-%m-%d %H:%M:%S")} '
+              f'({datetime.fromtimestamp(program_info.scheduledEndTime) - datetime.fromtimestamp(program_info.openTime)}h)')
+            print(Rule(characters='-', style=Style(color='#E33157')))
+
+        return program_info
 
 
     async def getNDGRViewAPIUri(self, ndgrProgramCommentViewUri: str) -> str:
@@ -345,7 +355,7 @@ class NDGRClient:
             httpx.HTTPStatusError: HTTP リクエストが失敗した場合
         """
 
-        if self.show_log:
+        if self.verbose:
             print(f'Reading {uri} ...')
             print(Rule(characters='-', style=Style(color='#E33157')))
         protobuf_reader = ProtobufStreamReader()

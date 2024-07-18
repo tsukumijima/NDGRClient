@@ -56,8 +56,6 @@ class NDGRClient:
         self.httpx_client = httpx.AsyncClient(
             ## リダイレクトを追跡する
             follow_redirects = True,
-            ## 可能な限り Chrome からのリクエストに偽装するため、HTTP/1.1 ではなく明示的に HTTP/2 で接続する
-            http2 = True,
         )
 
 

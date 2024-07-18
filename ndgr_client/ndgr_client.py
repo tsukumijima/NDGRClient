@@ -8,7 +8,7 @@ from datetime import datetime
 from rich import print
 from rich.rule import Rule
 from rich.style import Style
-from typing import Awaitable, Callable, Type, TypeVar
+from typing import Any, Awaitable, Callable, cast, Type, TypeVar
 
 from ndgr_client.protobuf_stream_reader import ProtobufStreamReader
 from ndgr_client.proto.dwango.nicolive.chat.data import atoms_pb2 as atoms
@@ -274,25 +274,33 @@ class NDGRClient:
         assert chunked_message.message.HasField('chat')
         assert chunked_message.message.chat.HasField('modifier')
 
+        # 色は named_color または full_color のどちらかで指定されている
+        # 万が一どちらも指定されている場合は、full_color を優先する
+        color = 'white'
+        if chunked_message.message.chat.modifier.HasField('full_color'):
+            color = NDGRCommentFullColor(
+                r = chunked_message.message.chat.modifier.full_color.r,
+                g = chunked_message.message.chat.modifier.full_color.g,
+                b = chunked_message.message.chat.modifier.full_color.b,
+            )
+        elif chunked_message.message.chat.modifier.HasField('named_color'):
+            color = cast(Any, atoms.Chat.Modifier.ColorName.Name(chunked_message.message.chat.modifier.named_color).lower())
+
         comment = NDGRComment(
             id = chunked_message.meta.id,
             at = datetime.fromtimestamp(float(f'{chunked_message.meta.at.seconds}.{chunked_message.meta.at.nanos}')),
             live_id = chunked_message.meta.origin.chat.live_id,
+            raw_user_id = chunked_message.message.chat.raw_user_id,
             hashed_user_id = chunked_message.message.chat.hashed_user_id,
+            account_status = cast(Any, atoms.Chat.AccountStatus.Name(chunked_message.message.chat.account_status)),
+            no = chunked_message.message.chat.no,
             vpos = chunked_message.message.chat.vpos,
-            position = atoms.Chat.Modifier.Pos.Name(chunked_message.message.chat.modifier.position).lower(),  # type: ignore
-            size = atoms.Chat.Modifier.Size.Name(chunked_message.message.chat.modifier.size).lower(),  # type: ignore
-            font = atoms.Chat.Modifier.Font.Name(chunked_message.message.chat.modifier.font).lower(),  # type: ignore
-            opacity = atoms.Chat.Modifier.Opacity.Name(chunked_message.message.chat.modifier.opacity),  # type: ignore
+            position = cast(Any, atoms.Chat.Modifier.Pos.Name(chunked_message.message.chat.modifier.position).lower()),
+            size = cast(Any, atoms.Chat.Modifier.Size.Name(chunked_message.message.chat.modifier.size).lower()),
+            color = color,
+            font = cast(Any, atoms.Chat.Modifier.Font.Name(chunked_message.message.chat.modifier.font).lower()),
+            opacity = cast(Any, atoms.Chat.Modifier.Opacity.Name(chunked_message.message.chat.modifier.opacity)),
             content = chunked_message.message.chat.content,
         )
-        if chunked_message.message.chat.modifier.HasField('named_color'):
-            comment.color = atoms.Chat.Modifier.ColorName.Name(chunked_message.message.chat.modifier.named_color).lower()  # type: ignore
-        elif chunked_message.message.chat.modifier.HasField('full_color'):
-            comment.color = NDGRCommentFullColor(
-                r = chunked_message.message.chat.modifier.full_color.r,
-                g = chunked_message.message.chat.modifier.full_color.g,
-                b = chunked_message.message.chat.modifier.full_color.b
-            )
 
         return comment

@@ -48,14 +48,20 @@ class NDGRComment(BaseModel):
     at: datetime
     # 生放送 ID (?) / ex: 345479473
     live_id: int
+    # 生のユーザー ID (ニコニコ生放送 (Re:仮) では現在常に 0)
+    raw_user_id: int
     # ハッシュ化されたユーザー ID / ex: "i:QKQvAEkmnovz"
     hashed_user_id: str
+    # アカウント状態
+    account_status: Literal['Standard', 'Premium']
+    # コメ番 (ニコニコ生放送 (Re:仮) ではなぜか設定されておらず、現在常に 0)
+    no: int
     # vposBaseTime から起算したコメント投稿時刻の相対時間 (1/100 秒単位) / ex: 18336492
     vpos: int
     # コメントの描画位置
-    position: Literal['naka', 'shita', 'ue'] = 'naka'
+    position: Literal['naka', 'shita', 'ue']
     # コメントの描画サイズ
-    size: Literal['medium', 'small', 'big'] = 'medium'
+    size: Literal['medium', 'small', 'big']
     # コメントの描画色
     color: Union[
         Literal[
@@ -63,11 +69,11 @@ class NDGRComment(BaseModel):
             'white2', 'red2', 'pink2', 'orange2', 'yellow2', 'green2', 'cyan2', 'blue2', 'purple2', 'black2'
         ],
         NDGRCommentFullColor
-    ] = 'white'
+    ]
     # コメントのフォントスタイル
-    font: Literal['defont', 'mincho', 'gothic'] = 'defont'
+    font: Literal['defont', 'mincho', 'gothic']
     # コメントの不透明度
-    opacity: Literal['Normal', 'Translucent'] = 'Normal'
+    opacity: Literal['Normal', 'Translucent']
     # コメント内容
     content: str
 class NDGRCommentFullColor(BaseModel):

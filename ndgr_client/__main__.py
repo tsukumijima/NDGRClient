@@ -9,10 +9,10 @@ from ndgr_client.proto.dwango.nicolive.chat.service.edge import payload_pb2 as c
 from ndgr_client.utils import AsyncTyper
 
 
-app = AsyncTyper(help='NDGRClient: Nicolive NDGR Comment Server Client')
+app = AsyncTyper(help='NDGRClient: Nicolive NDGR Server Client')
 
-@app.command(help='Stream comments from NDGR comment server.')
-@app.command(help='Stream comments from NDGR comment server.')
+@app.command(help='Stream comments from NDGR server.')
+@app.command(help='Stream comments from NDGR server.')
 async def stream(jikkyo_id: str):
     ndgr_client = NDGRClient(jikkyo_id)
     embedded_data = await ndgr_client.parseWatchPage()
@@ -51,7 +51,7 @@ async def stream(jikkyo_id: str):
         await ndgr_client.readProtobufStream(f'{view_uri}?at={at}', chat.ChunkedEntry, chunk_callback)
 
 
-@app.command(help='Download backward comments from NDGR comment server.')
+@app.command(help='Download backward comments from NDGR server.')
 def download_kakolog():
     pass
 

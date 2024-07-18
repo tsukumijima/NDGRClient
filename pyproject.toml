@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "ndgr-client"
 version = "0.1.0"
-description = "NDGRClient: Nicolive NDGR Comment Server Client"
+description = "NDGRClient: Nicolive NDGR Server Client"
 authors = ["tsukumi <tsukumijima@users.noreply.github.com>"]
 license = "MIT"
 readme = "Readme.md"

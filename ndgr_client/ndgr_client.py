@@ -14,7 +14,7 @@ from typing import Any, Awaitable, Callable, cast, Type, TypeVar
 from ndgr_client.protobuf_stream_reader import ProtobufStreamReader
 from ndgr_client.proto.dwango.nicolive.chat.data import atoms_pb2 as atoms
 from ndgr_client.proto.dwango.nicolive.chat.service.edge import payload_pb2 as chat
-from ndgr_client.schemas import (
+from ndgr_client.constants import (
     NDGRComment,
     NDGRCommentFullColor,
     NicoLiveProgramInfo,
@@ -59,12 +59,12 @@ class NDGRClient:
 
         Args:
             jikkyo_id (str): 旧来の実況 ID
-            show_log (bool, default=False): ログを表示するかどうか
+            show_log (bool, default=False): グラフィカルなログを出力するかどうか
         """
 
         self.jikkyo_id = jikkyo_id
         self.rekari_id = self.JIKKYO_ID_TO_REKARI_ID_MAP[jikkyo_id]
-        self.verbose = show_log
+        self.show_log = show_log
 
         # httpx の非同期 HTTP クライアントのインスタンスを作成
         self.httpx_client = httpx.AsyncClient(
@@ -143,7 +143,11 @@ class NDGRClient:
                                 return
 
                             # 取り回しやすいように NDGRComment Pydantic モデルに変換した上で、コールバック関数に渡す
-                            callback(self.convertToNDGRComment(chunked_message))
+                            comment = self.convertToNDGRComment(chunked_message)
+                            if self.show_log:
+                                print(str(comment))
+                                print(Rule(characters='-', style=Style(color='#E33157')))
+                            callback(comment)
 
                         # NDGR Segment API から ChunkedMessage の受信を開始 (受信が完了するまで非同期にブロックする)
                         await self.readProtobufStream(segment.uri, chat.ChunkedMessage, message_callback)
@@ -234,7 +238,7 @@ class NDGRClient:
 
         # NDGR Backward API から過去のコメントを PackedSegment 型で取得
         while True:
-            if self.verbose:
+            if self.show_log:
                 print(f'Retrieving {backward_api_uri} ...')
                 print(Rule(characters='-', style=Style(color='#E33157')))
             response = await self.httpx_client.get(backward_api_uri)
@@ -250,8 +254,8 @@ class NDGRClient:
                 # 取り回しやすいように NDGRComment Pydantic モデルに変換
                 comment = self.convertToNDGRComment(chunked_message)
                 temp_comments.append(comment)
-                if self.verbose:
-                    print(comment)
+                if self.show_log:
+                    print(str(comment))
                     print(Rule(characters='-', style=Style(color='#E33157')))
 
             # 現在の comments の前側に temp_comments の内容を連結
@@ -311,7 +315,7 @@ class NDGRClient:
             ndgrProgramCommentViewUri = embedded_data['temporaryMeasure']['ndgrProgramCommentViewUri'],
             ndgrProgramCommentPostUri = embedded_data['temporaryMeasure']['ndgrProgramCommentPostUri'],
         )
-        if self.verbose:
+        if self.show_log:
             print(f'Title:  {program_info.title} [{program_info.status}]')
             print(f'Period: {datetime.fromtimestamp(program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
               f'{datetime.fromtimestamp(program_info.scheduledEndTime).strftime("%Y-%m-%d %H:%M:%S")} '
@@ -369,7 +373,7 @@ class NDGRClient:
             httpx.HTTPStatusError: HTTP リクエストが失敗した場合
         """
 
-        if self.verbose:
+        if self.show_log:
             print(f'Reading {uri} ...')
             print(Rule(characters='-', style=Style(color='#E33157')))
         protobuf_reader = ProtobufStreamReader()

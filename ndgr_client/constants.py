@@ -76,6 +76,14 @@ class NDGRComment(BaseModel):
     opacity: Literal['Normal', 'Translucent']
     # コメント内容
     content: str
+
+    def __str__(self) -> str:
+        return (
+            f'[{self.at.strftime("%Y/%m/%d %H:%M:%S.%f")}] [white]{self.content}[/white]\n'
+            f'[grey70]User: {self.hashed_user_id} | Command: {self.position} {self.size} {self.color} {self.font}[/grey70]'
+        )
+
+
 class NDGRCommentFullColor(BaseModel):
     r: int
     g: int

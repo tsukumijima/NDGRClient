@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import httpx
 from bs4 import BeautifulSoup, Tag
@@ -29,6 +30,7 @@ class NDGRClient:
     下記コードでは、便宜的に NDGR サーバーの各 API を下記のように呼称する
     ・NDGR View API : https://mpn.live.nicovideo.jp/api/view/v4/...
     ・NDGR Segment API : https://mpn.live.nicovideo.jp/data/segment/v4/...
+    ・NDGR Backward API : https://mpn.live.nicovideo.jp/data/backward/v4/...
     """
 
     # User-Agent と Sec-CH-UA を Chrome 126 に偽装
@@ -74,6 +76,7 @@ class NDGRClient:
     async def streamComments(self, callback: Callable[[NDGRComment], None | Awaitable[None]]) -> None:
         """
         NDGR サーバーからリアルタイムコメントを随時ストリーミングし、コールバックに渡す
+        このメソッドはエラーなどでストリーミングが中断した場合を除き基本的に戻らない
 
         Args:
             callback (Callable[[NDGRComment], Awaitable[None]]): NDGR サーバーから受信したコメントを受け取るコールバック関数
@@ -112,7 +115,7 @@ class NDGRClient:
             async def chunk_callback(chunked_entry: chat.ChunkedEntry) -> None:
                 """
                 ChunkedEntry の受信を処理するコールバック関数
-                ChunkedEntry には、コメント受信用 API など複数の API の URI が含まれる
+                ChunkedEntry には、NDGR Segment API / NDGR Backward API など複数の API のアクセス先 URI が含まれる
                 """
 
                 nonlocal ready_for_next
@@ -133,20 +136,122 @@ class NDGRClient:
                         already_know_segment_uris.add(segment.uri)
 
                         # ChunkedMessage の受信を処理するコールバック関数
-                        async def message_callback(message: chat.ChunkedMessage) -> None:
+                        async def message_callback(chunked_message: chat.ChunkedMessage) -> None:
 
                             # meta または message が存在しない場合は空の ChunkedMessage なので無視する
-                            if not message.HasField('meta') or not message.HasField('message'):
+                            if not chunked_message.HasField('meta') or not chunked_message.HasField('message'):
                                 return
 
                             # 取り回しやすいように NDGRComment Pydantic モデルに変換した上で、コールバック関数に渡す
-                            callback(self.convertToNDGRComment(message))
+                            callback(self.convertToNDGRComment(chunked_message))
 
                         # NDGR Segment API から ChunkedMessage の受信を開始 (受信が完了するまで非同期にブロックする)
                         await self.readProtobufStream(segment.uri, chat.ChunkedMessage, message_callback)
 
             # NDGR View API から ChunkedEntry の受信を開始 (受信が完了するまで非同期にブロックする)
             await self.readProtobufStream(f'{view_api_uri}?at={at}', chat.ChunkedEntry, chunk_callback)
+
+
+    async def downloadBackwardComments(self) -> list[NDGRComment]:
+        """
+        NDGR サーバーから過去に投稿されたコメントを遡ってダウンロードする
+
+        Returns:
+            list[NDGRComment]: 過去に投稿されたコメントのリスト (時系列昇順)
+        """
+
+        # 視聴ページから NDGR View API の URI を取得する
+        embedded_data = await self.parseWatchPage()
+        view_api_uri = await self.getNDGRViewAPIUri(embedded_data.ndgrProgramCommentViewUri)
+
+        # NDGR View API への初回アクセスかどうかを表すフラグ
+        is_first_time: bool = True
+        # NDGR View API への次回アクセス時に ?at= に渡すタイムスタンプ (が格納された ChunkedEntry.ReadyForNext)
+        ready_for_next: chat.ChunkedEntry.ReadyForNext | None = None
+        # 過去のコメントを取得するための NDGR Backward API の URI
+        backward_api_uri: str | None = None
+        # コメントリスト
+        comments: list[NDGRComment] = []
+
+        # NDGR View API の持続期間は一定期間ごとに区切られているらしく、
+        # 一定期間が経過すると next フィールドに設定されている次の NDGR View API への再接続を求められる
+        while True:
+
+            # 状態次第で NDGR View API の ?at= に渡すタイムスタンプを決定する
+            # 初回アクセス時は ?at=now を指定する
+            # 次回アクセス時は ?at= に ChunkedEntry.ReadyForNext.at に設定されている Unix タイムスタンプを指定する
+            at: str | None = None
+            if ready_for_next is not None:
+                at = str(ready_for_next.at)
+            elif is_first_time:
+                at = 'now'
+                is_first_time = False
+
+            ready_for_next = None
+            backward_api_uri = None
+
+            async def chunk_callback(chunked_entry: chat.ChunkedEntry) -> None:
+                """
+                ChunkedEntry の受信を処理するコールバック関数
+                ChunkedEntry には、NDGR Segment API / NDGR Backward API など複数の API のアクセス先 URI が含まれる
+                """
+                nonlocal ready_for_next, backward_api_uri
+
+                # next フィールドがある場合は、NDGR View API への次回アクセス時に ?at= に指定するタイムスタンプ
+                # (が格納された ChunkedEntry.ReadyForNext) を更新する
+                if chunked_entry.HasField('next'):
+                    assert ready_for_next is None, 'Duplicated ReadyForNext'
+                    ready_for_next = chunked_entry.next
+
+                # backward フィールドがある場合は、BackwardSegment.segment.uri から NDGR Backward API の URI を取得する
+                elif chunked_entry.HasField('backward'):
+                    backward_api_uri = chunked_entry.backward.segment.uri
+
+            # NDGR View API から ChunkedEntry の受信を開始 (受信が完了するまで非同期にブロックする)
+            await self.readProtobufStream(f'{view_api_uri}?at={at}', chat.ChunkedEntry, chunk_callback)
+
+            # backward_api_uri が取得できたらループを抜ける
+            if backward_api_uri is not None:
+                break
+
+        # backward_api_uri が取得できなかった場合は空のリストを返す
+        if not backward_api_uri:
+            return []
+
+        # NDGR Backward API から過去のコメントを PackedSegment 型で取得
+        while True:
+            print(f'Retrieving {backward_api_uri} ...')
+            print(Rule(characters='-', style=Style(color='#E33157')))
+            response = await self.httpx_client.get(backward_api_uri)
+            response.raise_for_status()
+            packed_segment = chat.PackedSegment()
+            packed_segment.ParseFromString(response.content)
+
+            # PackedSegment.messages には複数の ChunkedMessage が格納されている
+            ## この ChunkedMessage は取得時点でコメント投稿時刻昇順でソートされている
+            ## このメソッドでもレスポンスはコメント投稿時刻昇順で返したいので、comments への追加方法を工夫している
+            temp_comments: list[NDGRComment] = []
+            for chunked_message in packed_segment.messages:
+                # 取り回しやすいように NDGRComment Pydantic モデルに変換
+                comment = self.convertToNDGRComment(chunked_message)
+                temp_comments.append(comment)
+                print(comment)
+                print(Rule(characters='-', style=Style(color='#E33157')))
+
+            # 現在の comments の前側に temp_comments の内容を連結
+            comments = temp_comments + comments
+
+            # next フィールドが設定されていれば、続けて過去のコメントを取得
+            if packed_segment.HasField('next'):
+                # NDGR Backward API の URI を次のコメント取得用に更新
+                backward_api_uri = packed_segment.next.uri
+            else:
+                break
+
+            # 短時間に大量アクセスすると 403 を返されるので、1秒待つ
+            await asyncio.sleep(1.0)
+
+        return comments
 
 
     async def parseWatchPage(self) -> NicoLiveProgramInfo:
@@ -220,7 +325,7 @@ class NDGRClient:
         return response_json['view']
 
 
-    ProtobufType = TypeVar('ProtobufType', chat.ChunkedEntry, chat.ChunkedMessage)
+    ProtobufType = TypeVar('ProtobufType', chat.ChunkedEntry, chat.ChunkedMessage, chat.PackedSegment)
     async def readProtobufStream(
         self,
         uri: str,

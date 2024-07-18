@@ -22,8 +22,10 @@ async def stream(jikkyo_id: str):
 
 
 @app.command(help='Download backward comments (kakolog) from NDGR server.')
-def download_kakolog():
-    pass
+async def download_kakolog(jikkyo_id: str):
+    ndgr_client = NDGRClient(jikkyo_id, show_log=True)
+    print(Rule(characters='-', style=Style(color='#E33157')))
+    comments = await ndgr_client.downloadBackwardComments()
 
 
 @app.command(help='Show version.')

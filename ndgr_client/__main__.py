@@ -14,6 +14,7 @@ app = AsyncTyper(help='NDGRClient: Nicolive NDGR Server Client')
 @app.command(help='Stream comments from NDGR server.')
 async def stream(jikkyo_id: str):
     ndgr_client = NDGRClient(jikkyo_id, show_log=True)
+    print(Rule(characters='-', style=Style(color='#E33157')))
     def callback(comment: NDGRComment):
         print(comment)
         print(Rule(characters='-', style=Style(color='#E33157')))

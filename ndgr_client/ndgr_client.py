@@ -190,6 +190,9 @@ class NDGRClient:
             ready_for_next = None
             backward_api_uri = None
 
+            # イベントを作成して、backward_api_uri が見つかったら設定する
+            backward_api_uri_found = asyncio.Event()
+
             async def chunk_callback(chunked_entry: chat.ChunkedEntry) -> None:
                 """
                 ChunkedEntry の受信を処理するコールバック関数
@@ -206,9 +209,20 @@ class NDGRClient:
                 # backward フィールドがある場合は、BackwardSegment.segment.uri から NDGR Backward API の URI を取得する
                 elif chunked_entry.HasField('backward'):
                     backward_api_uri = chunked_entry.backward.segment.uri
+                    backward_api_uri_found.set()  # イベントを設定して、ループを終了させる
 
-            # NDGR View API から ChunkedEntry の受信を開始 (受信が完了するまで非同期にブロックする)
-            await self.readProtobufStream(f'{view_api_uri}?at={at}', chat.ChunkedEntry, chunk_callback)
+            # NDGR View API から ChunkedEntry の受信を開始する非同期タスクを作成
+            read_task = asyncio.create_task(self.readProtobufStream(f'{view_api_uri}?at={at}', chat.ChunkedEntry, chunk_callback))
+
+            # backward_api_uri が見つかるか、self.readProtobufStream() が完了するまで待機
+            _, pending = await asyncio.wait(
+                [read_task, asyncio.create_task(backward_api_uri_found.wait())],
+                return_when = asyncio.FIRST_COMPLETED,
+            )
+
+            # 完了していないタスクをキャンセル
+            for task in pending:
+                task.cancel()
 
             # backward_api_uri が取得できたらループを抜ける
             if backward_api_uri is not None:

@@ -1,4 +1,5 @@
 
+from datetime import datetime
 from pydantic import BaseModel
 
 
@@ -37,9 +38,12 @@ class NDGRComment(BaseModel):
     """
     NDGR サーバーから返される Protobuf 形式のコメントデータのうち、有用そうな情報
     フィールド名は基本的に Protobuf の各値のキー名と同一
+    他にも (実際に送られてきていれば) 有用そうな情報は色々あるが、ニコニコ生放送 (Re:仮) の時点では下記情報くらいしか送信されていない
     """
     # コメント ID (?) / ex: "EhgKEgmBfWBX18SQARFaOaNDSRHkkhCy-h0"
     id: str
+    # コメント日時
+    at: datetime
     # 生放送 ID (?) / ex: 345479473
     live_id: int
     # コメント内容

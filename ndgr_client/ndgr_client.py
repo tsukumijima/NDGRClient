@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import httpx
 from bs4 import BeautifulSoup, Tag
+from datetime import datetime
 from rich import print
 from rich.rule import Rule
 from rich.style import Style
@@ -20,8 +21,12 @@ from ndgr_client.schemas import (
 class NDGRClient:
     """
     NDGR サーバーのクライアント実装
-    下記実装を大変参考にした
+    実装にあたり、下記リポジトリが大変参考になった
     ref: https://github.com/rinsuki-lab/ndgr-reader
+
+    下記コードでは、便宜的に NDGR サーバーの各 API を下記のように呼称する
+    ・NDGR View API : https://mpn.live.nicovideo.jp/api/view/v4/...
+    ・NDGR Segment API : https://mpn.live.nicovideo.jp/data/segment/v4/...
     """
 
     # User-Agent と Sec-CH-UA を Chrome 126 に偽装
@@ -64,49 +69,6 @@ class NDGRClient:
         )
 
 
-    async def parseWatchPage(self) -> NicoLiveProgramInfo:
-        """
-        視聴ページを解析し、埋め込みデータを取得する
-        大災害前のニコ生と異なり、ページをロードしただけではニコ生側の視聴セッションは初期化されない
-
-        Returns:
-            WatchPageTemporaryMeasure: 解析された埋め込みデータ
-
-        Raises:
-            httpx.HTTPStatusError: HTTP リクエストが失敗した場合
-            AssertionError: 解析に失敗した場合
-        """
-
-        watch_page_url = f'https://live.nicovideo.jp/rekari/{self.rekari_id}'
-        response = await self.httpx_client.get(watch_page_url)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, 'html.parser')
-        embedded_data_elm = soup.find(id='embedded-data')
-        assert isinstance(embedded_data_elm, Tag)
-        props = embedded_data_elm.get('data-props')
-        assert isinstance(props, str)
-        embedded_data = json.loads(props)
-        assert isinstance(embedded_data, dict)
-        assert 'program' in embedded_data
-        assert 'temporaryMeasure' in embedded_data
-
-        return NicoLiveProgramInfo(
-            title = embedded_data['program']['title'],
-            description = embedded_data['program']['description'],
-            status = embedded_data['program']['status'],
-            releaseTime = embedded_data['program']['releaseTime'],
-            openTime = embedded_data['program']['openTime'],
-            beginTime = embedded_data['program']['beginTime'],
-            vposBaseTime = embedded_data['program']['vposBaseTime'],
-            endTime = embedded_data['program']['endTime'],
-            scheduledEndTime = embedded_data['program']['scheduledEndTime'],
-            streamContentUri = embedded_data['temporaryMeasure']['streamContentUri'],
-            ndgrProgramCommentViewUri = embedded_data['temporaryMeasure']['ndgrProgramCommentViewUri'],
-            ndgrProgramCommentPostUri = embedded_data['temporaryMeasure']['ndgrProgramCommentPostUri'],
-        )
-
-
     async def streamComments(self, callback: Callable[[NDGRComment], None | Awaitable[None]]) -> None:
         """
         NDGR サーバーからリアルタイムコメントを随時ストリーミングし、コールバックに渡す
@@ -118,12 +80,9 @@ class NDGRClient:
             AssertionError: 解析に失敗した場合
         """
 
+        # 視聴ページから NDGR View API の URI を取得する
         embedded_data = await self.parseWatchPage()
-        view_uri = await self.acquireViewUri(embedded_data.ndgrProgramCommentViewUri)
-
-        # 下記コードでは、NDGR サーバーの各 API を便宜的に下記の通り呼称する
-        # ・https://mpn.live.nicovideo.jp/api/view/v4/...: NDGR View API
-        # ・https://mpn.live.nicovideo.jp/data/segment/v4/...: NDGR Segment API
+        view_api_uri = await self.getNDGRViewAPIUri(embedded_data.ndgrProgramCommentViewUri)
 
         # NDGR View API への初回アクセスかどうかを表すフラグ
         is_first_time: bool = True
@@ -181,6 +140,7 @@ class NDGRClient:
                             # Pydantic モデルに変換してコールバック関数に返す
                             callback(NDGRComment(
                                 id = message.meta.id,
+                                at = datetime.fromtimestamp(float(f'{message.meta.at.seconds}.{message.meta.at.nanos}')),
                                 live_id = message.meta.origin.chat.live_id,
                                 content = message.message.chat.content,
                                 vpos = message.message.chat.vpos,
@@ -191,20 +151,64 @@ class NDGRClient:
                         await self.readProtobufStream(segment.uri, chat.ChunkedMessage, message_callback)
 
             # NDGR View API から ChunkedEntry の受信を開始 (受信が完了するまで非同期にブロックする)
-            await self.readProtobufStream(f'{view_uri}?at={at}', chat.ChunkedEntry, chunk_callback)
+            await self.readProtobufStream(f'{view_api_uri}?at={at}', chat.ChunkedEntry, chunk_callback)
 
 
-    async def acquireViewUri(self, ndgrProgramCommentViewUri: str) -> str:
+    async def parseWatchPage(self) -> NicoLiveProgramInfo:
         """
-        視聴ページから取得した ndgrProgramCommentViewUri を使って、NDGR サーバーへの接続用 URL を確保する
+        視聴ページを解析し、埋め込みデータを取得する
+        大災害前のニコ生と異なり、ページをロードしただけではニコ生側の視聴セッションは初期化されない
+
+        Returns:
+            WatchPageTemporaryMeasure: 解析された埋め込みデータ
+
+        Raises:
+            httpx.HTTPStatusError: HTTP リクエストが失敗した場合
+            AssertionError: 解析に失敗した場合
+        """
+
+        watch_page_url = f'https://live.nicovideo.jp/rekari/{self.rekari_id}'
+        response = await self.httpx_client.get(watch_page_url)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        embedded_data_elm = soup.find(id='embedded-data')
+        assert isinstance(embedded_data_elm, Tag)
+        props = embedded_data_elm.get('data-props')
+        assert isinstance(props, str)
+        embedded_data = json.loads(props)
+        assert isinstance(embedded_data, dict)
+        assert 'program' in embedded_data
+        assert 'temporaryMeasure' in embedded_data
+
+        return NicoLiveProgramInfo(
+            title = embedded_data['program']['title'],
+            description = embedded_data['program']['description'],
+            status = embedded_data['program']['status'],
+            releaseTime = embedded_data['program']['releaseTime'],
+            openTime = embedded_data['program']['openTime'],
+            beginTime = embedded_data['program']['beginTime'],
+            vposBaseTime = embedded_data['program']['vposBaseTime'],
+            endTime = embedded_data['program']['endTime'],
+            scheduledEndTime = embedded_data['program']['scheduledEndTime'],
+            streamContentUri = embedded_data['temporaryMeasure']['streamContentUri'],
+            ndgrProgramCommentViewUri = embedded_data['temporaryMeasure']['ndgrProgramCommentViewUri'],
+            ndgrProgramCommentPostUri = embedded_data['temporaryMeasure']['ndgrProgramCommentPostUri'],
+        )
+
+
+    async def getNDGRViewAPIUri(self, ndgrProgramCommentViewUri: str) -> str:
+        """
+        ニコニコ生放送 (Re:仮) の視聴ページから取得した ndgrProgramCommentViewUri を使って、NDGR View API の URI を取得する
         Protobuf ストリームが返ることからして、NDGR サーバーは大災害前のニコ生の WebSocket API とは仕様が大きく異なる
         この API を叩くことで NDGR サーバー内部でどこまでリソース確保が行われているのかはよくわからない…
+        (レスポンスヘッダーを見る限り CloudFront のキャッシュがヒットしてそうなので、多くの同時接続を捌けるようキャッシュされている？)
 
         Args:
             ndgrProgramCommentViewUri (str): 視聴ページから取得した ndgrProgramCommentViewUri
 
         Returns:
-            str: NDGR サーバーへの接続用 URL
+            str: 当該番組に対応する NDGR View API の URI
 
         Raises:
             httpx.HTTPStatusError: HTTP リクエストが失敗した場合

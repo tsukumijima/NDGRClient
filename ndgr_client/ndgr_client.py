@@ -381,19 +381,35 @@ class NDGRClient:
         if self.show_log:
             print(f'Reading {uri} ...')
             print(Rule(characters='-', style=Style(color='#E33157')))
-        protobuf_reader = ProtobufStreamReader()
 
-        async with self.httpx_client.stream('GET', uri, timeout=httpx.Timeout(5.0, read=None)) as response:
-            response.raise_for_status()
-            async for chunk in response.aiter_bytes():
-                protobuf_reader.addNewChunk(chunk)
-                while True:
-                    message = protobuf_reader.unshiftChunk()
-                    if message is None:
-                        break
-                    protobuf = protobuf_class()
-                    protobuf.ParseFromString(message)
-                    await chunk_callback(protobuf)
+        max_retries = 5  # 5回までリトライ
+        retry_delay = 3  # 3秒待ってリトライ
+
+        for attempt in range(max_retries):
+            try:
+                protobuf_reader = ProtobufStreamReader()
+                async with self.httpx_client.stream('GET', uri, timeout=httpx.Timeout(5.0, read=None)) as response:
+                    response.raise_for_status()
+                    async for chunk in response.aiter_bytes():
+                        protobuf_reader.addNewChunk(chunk)
+                        while True:
+                            message = protobuf_reader.unshiftChunk()
+                            if message is None:
+                                break
+                            protobuf = protobuf_class()
+                            protobuf.ParseFromString(message)
+                            await chunk_callback(protobuf)
+                break  # 成功した場合、ループを抜ける
+
+            except (httpx.HTTPError, httpx.StreamError) as e:
+                if attempt < max_retries - 1:
+                    if self.show_log:
+                        print(f'HTTP error occurred: {e}. Retrying in {retry_delay} seconds...')
+                    await asyncio.sleep(retry_delay)
+                else:
+                    if self.show_log:
+                        print(f'Max retries reached. Error: {e}')
+                    raise  # 最後の試行でも失敗した場合、例外を再発生させる
 
 
     @staticmethod

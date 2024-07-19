@@ -12,16 +12,16 @@ generate-proto = "find proto -name '*.proto' | xargs protoc --proto_path=proto -
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
 beautifulsoup4 = "^4.12.3"
-httpx = {version = "^0.27.0", extras = ["http2"]}
+httpx = "^0.27.0"
 lxml = "^5.2.2"
 lxml-stubs = "^0.5.1"
+protobuf = "^5.27.2"
 pydantic = "^2.8.2"
 typer = {version = "^0.12.3", extras = ["all"]}
 typing-extensions = "^4.12.2"
 
 [tool.poetry.group.dev.dependencies]
 mypy-protobuf = "^3.6.0"
-protobuf = "^5.27.2"
 protoc-wheel-0 = "^27.0"
 taskipy = "^1.13.0"
 

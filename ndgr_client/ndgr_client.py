@@ -78,15 +78,16 @@ class NDGRClient:
         )
 
 
-    async def streamComments(self, callback: Callable[[NDGRComment], None | Awaitable[None]]) -> None:
+    async def streamComments(self, callback: Callable[[NDGRComment], Awaitable[None]]) -> None:
         """
         NDGR サーバーからリアルタイムコメントを随時ストリーミングし、コールバックに渡す
-        このメソッドはエラーなどでストリーミングが中断した場合を除き基本的に戻らない
+        このメソッドは例外発生時を除き基本的に戻らない
 
         Args:
             callback (Callable[[NDGRComment], Awaitable[None]]): NDGR サーバーから受信したコメントを受け取るコールバック関数
 
         Raises:
+            httpx.HTTPStatusError: HTTP リクエストが失敗した場合
             AssertionError: 解析に失敗した場合
         """
 
@@ -152,7 +153,9 @@ class NDGRClient:
                             if self.show_log:
                                 print(str(comment))
                                 print(Rule(characters='-', style=Style(color='#E33157')))
-                            callback(comment)
+
+                            # 非同期コールバック関数を実行
+                            await callback(comment)
 
                         # NDGR Segment API から ChunkedMessage の受信を開始 (受信が完了するまで非同期にブロックする)
                         await self.readProtobufStream(segment.uri, chat.ChunkedMessage, message_callback)
@@ -167,6 +170,10 @@ class NDGRClient:
 
         Returns:
             list[NDGRComment]: 過去に投稿されたコメントのリスト (時系列昇順)
+
+        Raises:
+            httpx.HTTPStatusError: HTTP リクエストが失敗した場合
+            AssertionError: 解析に失敗した場合
         """
 
         # 視聴ページから NDGR View API の URI を取得する
@@ -285,7 +292,7 @@ class NDGRClient:
         大災害前のニコ生と異なり、ページをロードしただけではニコ生側の視聴セッションは初期化されない
 
         Returns:
-            WatchPageTemporaryMeasure: 解析された埋め込みデータ
+            NicoLiveProgramInfo: 解析された埋め込みデータ
 
         Raises:
             httpx.HTTPStatusError: HTTP リクエストが失敗した場合
@@ -366,16 +373,14 @@ class NDGRClient:
         chunk_callback: Callable[[ProtobufType], Awaitable[None]],
     ) -> None:
         """
-        Protobuf ストリームを読み込み、チャンクごとにコールバック関数を呼び出す
+        Protobuf ストリームを読み込み、読み取った Protobuf チャンクごとにコールバック関数を呼び出す
         Protobuf ストリームを最後まで読み切ったら None を返す
+        エラー発生時は 5 回までリトライしてから例外を送出する
 
         Args:
             uri (str): 読み込む Protobuf ストリームの URI
             protobuf_class (Type[ProtobufType]): 読み込む Protobuf の型
-            chunk_callback (Callable[[ProtobufType], Awaitable[None]]): 各チャンクに対して呼び出されるコールバック関数
-
-        Raises:
-            httpx.HTTPStatusError: HTTP リクエストが失敗した場合
+            chunk_callback (Callable[[ProtobufType], Awaitable[None]]): 読み取った各 Protobuf チャンクに対して呼び出されるコールバック関数
         """
 
         if self.show_log:
@@ -388,8 +393,11 @@ class NDGRClient:
         for attempt in range(max_retries):
             try:
                 protobuf_reader = ProtobufStreamReader()
+                # Protobuf ストリームを取得
                 async with self.httpx_client.stream('GET', uri, timeout=httpx.Timeout(5.0, read=None)) as response:
+                    # HTTP エラー発生時は例外を送出してリトライさせる
                     response.raise_for_status()
+                    # Protobuf チャンクを読み取る
                     async for chunk in response.aiter_bytes():
                         protobuf_reader.addNewChunk(chunk)
                         while True:
@@ -398,18 +406,23 @@ class NDGRClient:
                                 break
                             protobuf = protobuf_class()
                             protobuf.ParseFromString(message)
+                            # 非同期コールバック関数を実行
                             await chunk_callback(protobuf)
-                break  # 成功した場合、ループを抜ける
+                # Protobuf ストリームを最後まで読み切ったら、ループを抜ける
+                break
 
+            # HTTP 接続エラー発生時、しばらく待ってからリトライを試みる
             except (httpx.HTTPError, httpx.StreamError) as e:
                 if attempt < max_retries - 1:
                     if self.show_log:
                         print(f'HTTP error occurred: {e}. Retrying in {retry_delay} seconds...')
                     await asyncio.sleep(retry_delay)
+
+                # 最後の試行でも失敗した場合、例外を再発生させる
                 else:
                     if self.show_log:
                         print(f'Max retries reached. Error: {e}')
-                    raise  # 最後の試行でも失敗した場合、例外を再発生させる
+                    raise
 
 
     @staticmethod

@@ -21,7 +21,7 @@ async def stream(jikkyo_id: str):
     ndgr_client = NDGRClient(jikkyo_id, show_log=True)
 
     # コメントをエンドレスでストリーミング開始
-    def callback(comment: NDGRComment):
+    async def callback(comment: NDGRComment):
         pass
     await ndgr_client.streamComments(callback)
 

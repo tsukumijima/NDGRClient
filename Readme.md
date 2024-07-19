@@ -1,9 +1,9 @@
 
 # NDGRClient
 
-![Screenshot](https://github.com/user-attachments/assets/16b092dd-419a-421a-8eae-46a20b106298)
-
 **NDGRClient**: Nicolive NDGR Server Client Library & Command Line Tool
+
+![Screenshot](https://github.com/user-attachments/assets/16b092dd-419a-421a-8eae-46a20b106298)
 
 ## About
 
@@ -16,7 +16,7 @@
 > 2024/07/19 時点で `https://mpn.live.nicovideo.jp` 以下で運用されている API サーバーのことを便宜的にそう呼称しています。  
 > `NDGR` が何を意味しているかは分かりませんが、ニコニコ生放送 (Re:仮) で運用されているものと同一設計のサーバーのクライアント実装が、05/21 時点で実際に [N Air (ニコ生配信者向けに公開されている Streamlabs OBS のフォーク) のソースコード](https://github.com/n-air-app/n-air-app/blob/n-air_development/app/services/nicolive-program/NdgrClient.ts) に `NdgrClient` として追加されていることが確認できます。
 >
-> NDGR サーバーの最大の特徴は、サイバー攻撃以前のニコ生では視聴開始リクエスト・統計情報・コメントなどを全て WebSocket API で送受信していたところ、**Protobuf 形式のバイナリを連結してストリームとして返す HTTP ストリーミング API** (定期的なポーリングが前提) と、**コメント投稿用の REST API** の組み合わせに変更されていることです。  
+> NDGR サーバーの最大の特徴は、サイバー攻撃以前のニコ生では視聴開始リクエスト・統計情報・コメントなどをすべて WebSocket API で送受信していたところ、**Protobuf 形式のバイナリを連結してストリームとして返す HTTP ストリーミング API** (定期的なポーリングが前提) と、**コメント投稿用の REST API** の組み合わせに変更されていることです。  
 > 
 > AWS 上で稼働していること、またこのような高度な仕組みは数週間で実装できるようなものではないことから、以前から進行していたニコ生の AWS 載せ替え & フルリニューアル時に、従来の WebSocket API を新規開発でクラウドネイティブな NDGR サーバーで置き換え予定だったと考えられます。  
 > 今回急遽 AWS 上にニコニコ生放送 (Re:仮) 用の生放送配信サーバーを構築する必要に迫られ、当時開発途上だった NDGR サーバーを急遽ニコニコ生放送 (Re:仮) の基幹システムとして流用した、と考えるのが自然です。
@@ -40,7 +40,7 @@ poetry run python -m ndgr_client stream <jikkyo_id>
 指定した実況チャンネル ID (jk1, jk9, jk211 など) に投稿されたコメントを、リアルタイムにコンソールに表示します。
 
 > [!TIP]
-> `jk0` を指定すると、（ニコニコ実況ではありませんが）特別に「サイバー攻撃からのニコニコ復旧を見守る場所」のコメントを表示できます。
+> `jikkyo_id` に `jk0` を指定すると、（ニコニコ実況ではありませんが）特別に「サイバー攻撃からのニコニコ復旧を見守る場所」のコメントを表示できます。
 
 ### Download Kakolog
 
@@ -56,7 +56,10 @@ poetry run python -m ndgr_client download <jikkyo_id> --output-dir <output_dir>
 コメントは最新のものから過去に遡るようにまとめて取得され、取得されたコメントは随時コンソールに表示されます。
 
 > [!TIP]
-> `jk0` を指定すると、（ニコニコ実況ではありませんが）特別に「サイバー攻撃からのニコニコ復旧を見守る場所」のコメントをダウンロードできます。
+> `jikkyo_id` に `jk0` を指定すると、（ニコニコ実況ではありませんが）特別に「サイバー攻撃からのニコニコ復旧を見守る場所」のコメントをダウンロードできます。
+
+> [!TIP]
+> `jikkyo_id` に `all` を指定すると、「サイバー攻撃からのニコニコ復旧を見守る場所」を除く、すべての実況チャンネルのコメントを一括でダウンロードできます。
 
 ## Special Thanks
 

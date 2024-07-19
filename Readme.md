@@ -1,7 +1,9 @@
 
 # NDGRClient
 
-**NDGRClient**: Nicolive NDGR Server Client
+![Screenshot](https://github.com/user-attachments/assets/16b092dd-419a-421a-8eae-46a20b106298)
+
+**NDGRClient**: Nicolive NDGR Server Client Library & Command Line Tool
 
 ## About
 
@@ -29,6 +31,8 @@
 
 ### Streaming
 
+![Screenshot](https://github.com/user-attachments/assets/8ea7e245-b525-48cd-9fb8-280a7edc63b6)
+
 ```bash
 poetry run python -m ndgr_client stream <jikkyo_id>
 ```
@@ -40,11 +44,15 @@ poetry run python -m ndgr_client stream <jikkyo_id>
 
 ### Download Kakolog
 
+![Screenshot](https://github.com/user-attachments/assets/31c4ccc5-feb8-47cd-8665-451a180f471a)
+
 ```bash
-poetry run python -m ndgr_client download <jikkyo_id>
+poetry run python -m ndgr_client download <jikkyo_id> --output-dir <output_dir>
 ```
 
-指定した実況チャンネル ID (jk1, jk9, jk211 など) に投稿された、過去すべてのコメントを一括でダウンロードします。  
+指定した実況チャンネル ID (jk1, jk9, jk211 など) に投稿された、過去すべてのコメントを一括でダウンロードし、`(output_dir)/(jikkyo_id).nicojk` に保存します。  
+`--output-dir` を指定しない場合、カレントディレクトリに保存されます。
+
 コメントは最新のものから過去に遡るようにまとめて取得され、取得されたコメントは随時コンソールに表示されます。
 
 > [!TIP]

@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "ndgr-client"
 version = "0.1.0"
-description = "NDGRClient: Nicolive NDGR Server Client"
+description = "NDGRClient: Nicolive NDGR Server Client Library"
 authors = ["tsukumi <tsukumijima@users.noreply.github.com>"]
 license = "MIT"
 readme = "Readme.md"
@@ -13,6 +13,8 @@ generate-proto = "find proto -name '*.proto' | xargs protoc --proto_path=proto -
 python = ">=3.11,<3.13"
 beautifulsoup4 = "^4.12.3"
 httpx = {version = "^0.27.0", extras = ["http2"]}
+lxml = "^5.2.2"
+lxml-stubs = "^0.5.1"
 pydantic = "^2.8.2"
 typer = {version = "^0.12.3", extras = ["all"]}
 typing-extensions = "^4.12.2"

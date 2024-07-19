@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import httpx
+import lxml.etree as ET
 from bs4 import BeautifulSoup, Tag
 from datetime import datetime
 from rich import print
@@ -18,6 +19,7 @@ from ndgr_client.constants import (
     NDGRComment,
     NDGRCommentFullColor,
     NicoLiveProgramInfo,
+    XMLCompatibleComment,
 )
 
 
@@ -61,6 +63,9 @@ class NDGRClient:
             jikkyo_id (str): 旧来の実況 ID
             show_log (bool, default=False): グラフィカルなログを出力するかどうか
         """
+
+        if jikkyo_id not in self.JIKKYO_ID_TO_REKARI_ID_MAP:
+            raise ValueError(f'Invalid jikkyo_id: {jikkyo_id}')
 
         self.jikkyo_id = jikkyo_id
         self.rekari_id = self.JIKKYO_ID_TO_REKARI_ID_MAP[jikkyo_id]
@@ -437,3 +442,95 @@ class NDGRClient:
         )
 
         return comment
+
+
+    @staticmethod
+    def convertToXMLCompatibleComment(comment: NDGRComment) -> XMLCompatibleComment:
+        """
+        NDGRComment を XML 互換コメントデータに変換する
+
+        Args:
+            comment (NDGRComment): NDGRComment
+
+        Returns:
+            XMLCompatibleComment: XMLCompatibleComment
+        """
+
+        # コマンド文字列を生成
+        ## NDGR サーバーのコメントは現状常に匿名化されるため、mail フィールドに '184' を設定している
+        command = ['184']
+        if comment.position != 'naka':
+            command.append(comment.position)
+        if comment.size != 'medium':
+            command.append(comment.size)
+        if isinstance(comment.color, str) and comment.color != 'white':
+            command.append(comment.color)
+        elif isinstance(comment.color, NDGRCommentFullColor):
+            command.append(f'#{comment.color.r:02x}{comment.color.g:02x}{comment.color.b:02x}')
+        if comment.font != 'defont':
+            command.append(comment.font)
+
+        # XMLCompatibleComment オブジェクトを生成
+        xml_compatible_comment = XMLCompatibleComment(
+            thread = str(comment.live_id),
+            no = comment.no,
+            vpos = comment.vpos,
+            date = int(comment.at.timestamp()),
+            date_usec = int((comment.at.timestamp() % 1) * 1000000),
+            user_id = f'rekari:{comment.hashed_user_id}',  # ニコニコ生放送 (Re:仮) のコメントだと識別できる prefix を付与
+            mail = ' '.join(command),
+            premium = 1 if comment.account_status == 'Premium' else None,
+            anonymity = 1,  # コメントは常に匿名化されているため、常に anonymity フィールドに 1 を設定している
+            content = comment.content,
+        )
+
+        return xml_compatible_comment
+
+
+    @staticmethod
+    def convertToXMLString(comments: list[NDGRComment]) -> str:
+        """
+        NDGRComment のリストをヘッダーなし XML 文字列 (.nicojk) に変換する
+
+        Args:
+            comments (list[NDGRComment]): NDGRComment のリスト
+
+        Returns:
+            str: XML 文字列
+        """
+
+        # XML のエレメントツリー
+        elem_tree = ET.Element('packet')
+
+        # NDGR サーバーでは現状コメ番が付与されていないため、独自に連番で付与する
+        comment_no = 1
+
+        # コメント投稿時刻昇順でソート
+        comments.sort(key=lambda x: x.at)
+
+        # コメントごとに
+        for comment in comments:
+
+            # コメントを XMLCompatibleComment に変換したあと、さらに辞書に変換
+            # このときコメ番を一つずつ加算していく
+            comment = NDGRClient.convertToXMLCompatibleComment(comment)
+            comment.no = comment_no
+            comment_no += 1
+            comment_dict = comment.model_dump()
+
+            # コメント本文を取得して消す（ XML ではタグ内の値として入るため）
+            chat_content = comment_dict['content']
+            del comment_dict['content']
+
+            # 属性を XML エレメントに追加
+            chat_elem_tree = ET.SubElement(elem_tree, 'chat', {key: str(value) for key, value in comment_dict.items() if value is not None})
+
+            # XML エレメント内の値に以前取得した本文を指定
+            chat_elem_tree.text = chat_content
+
+        # 素の XML を .nicojk 形式向けにフォーマットする
+        # lxml.etree を使うことで属性の順序を保持できる
+        # ref: https://banatech.net/blog/view/19
+        xml_string = ET.tostring(elem_tree, encoding='utf-8', pretty_print=True).decode('utf-8').replace('>\n  ', '>\n')  # インデントを除去
+        xml_string = xml_string.replace('<packet>\n', '').replace('</packet>', '').replace('<packet/>', '')  # <packet> タグを除去
+        return xml_string.rstrip()

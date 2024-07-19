@@ -88,3 +88,29 @@ class NDGRCommentFullColor(BaseModel):
     r: int
     g: int
     b: int
+
+
+class XMLCompatibleComment(BaseModel):
+    """
+    ニコニコ旧来の XML 互換コメントデータ
+    """
+    # コメントのスレッド ID
+    thread: str
+    # コメント番号（コメ番）
+    no: int
+    # スレッド ID から起算したコメントの再生位置（1/100秒）
+    vpos: int
+    # コメント投稿時間の UNIX タイムスタンプ
+    date: int
+    # コメント投稿時間の小数点以下の時間 (6桁)
+    date_usec: int
+    # ユーザー ID（コマンドに 184 が指定されている場合は匿名化される）
+    user_id: str
+    # コメントのコマンド（184, red naka big など）
+    mail: str
+    # コメントしたユーザーがプレミアム会員であれば 1
+    premium: Literal[1] | None = None
+    # コメントしたユーザーが匿名化されていれば 1
+    anonymity: Literal[1] | None = None
+    # コメント内容
+    content: str

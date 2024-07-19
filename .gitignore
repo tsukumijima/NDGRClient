@@ -144,3 +144,5 @@ cython_debug/
 .python-version
 build/
 dist/
+
+*.nicojk

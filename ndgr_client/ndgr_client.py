@@ -73,6 +73,21 @@ class NDGRClient:
 
         # httpx の非同期 HTTP クライアントのインスタンスを作成
         self.httpx_client = httpx.AsyncClient(
+            ## リクエストヘッダーを設定 (Chrome に偽装)
+            headers = {
+                'accept': '*/*',
+                'accept-encoding': 'gzip, deflate, br',
+                'accept-language': 'ja',
+                'origin': 'https://live.nicovideo.jp',
+                'referer': 'https://live.nicovideo.jp/',
+                'sec-ch-ua': self.SEC_CH_UA,
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Windows"',
+                'sec-fetch-dest': 'empty',
+                'sec-fetch-mode': 'cors',
+                'sec-fetch-site': 'same-site',
+                'user-agent': self.USER_AGENT,
+            },
             ## リダイレクトを追跡する
             follow_redirects = True,
         )
@@ -118,7 +133,7 @@ class NDGRClient:
 
             ready_for_next = None
 
-            async def chunk_callback(chunked_entry: chat.ChunkedEntry) -> None:
+            async def chunked_entry_callback(chunked_entry: chat.ChunkedEntry) -> None:
                 """
                 ChunkedEntry の受信を処理するコールバック関数
                 ChunkedEntry には、NDGR Segment API / NDGR Backward API など複数の API のアクセス先 URI が含まれる
@@ -142,7 +157,7 @@ class NDGRClient:
                         already_know_segment_uris.add(segment.uri)
 
                         # ChunkedMessage の受信を処理するコールバック関数
-                        async def message_callback(chunked_message: chat.ChunkedMessage) -> None:
+                        async def chunked_message_callback(chunked_message: chat.ChunkedMessage) -> None:
 
                             # meta または message が存在しない場合は空の ChunkedMessage なので無視する
                             if not chunked_message.HasField('meta') or not chunked_message.HasField('message'):
@@ -158,10 +173,10 @@ class NDGRClient:
                             await callback(comment)
 
                         # NDGR Segment API から ChunkedMessage の受信を開始 (受信が完了するまで非同期にブロックする)
-                        await self.readProtobufStream(segment.uri, chat.ChunkedMessage, message_callback)
+                        await self.readProtobufStream(segment.uri, chat.ChunkedMessage, chunked_message_callback)
 
             # NDGR View API から ChunkedEntry の受信を開始 (受信が完了するまで非同期にブロックする)
-            await self.readProtobufStream(f'{view_api_uri}?at={at}', chat.ChunkedEntry, chunk_callback)
+            await self.readProtobufStream(f'{view_api_uri}?at={at}', chat.ChunkedEntry, chunked_entry_callback)
 
 
     async def downloadBackwardComments(self) -> list[NDGRComment]:

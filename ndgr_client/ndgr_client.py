@@ -5,6 +5,7 @@ import asyncio
 import json
 import httpx
 import lxml.etree as ET
+import re
 from bs4 import BeautifulSoup, Tag
 from datetime import datetime
 from rich import print
@@ -543,6 +544,11 @@ class NDGRClient:
             str: XML 文字列
         """
 
+        def sanitize_for_xml(text: str) -> str:
+            # XML と互換性のない制御文字を除去
+            # 有効な XML 制御文字 (タブ、改行、復帰) は保持
+            return re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+
         # XML のエレメントツリー
         elem_tree = ET.Element('packet')
 
@@ -567,10 +573,13 @@ class NDGRClient:
             del comment_dict['content']
 
             # 属性を XML エレメントに追加
-            chat_elem_tree = ET.SubElement(elem_tree, 'chat', {key: str(value) for key, value in comment_dict.items() if value is not None})
+            sanitized_attrs = {key: sanitize_for_xml(str(value)) for key, value in comment_dict.items() if value is not None}
+            chat_elem_tree = ET.SubElement(elem_tree, 'chat', sanitized_attrs)
 
             # XML エレメント内の値に以前取得した本文を指定
-            chat_elem_tree.text = chat_content
+            ## 制御文字が入ってると ValueError: All strings must be XML compatible: Unicode or ASCII, no NULL bytes or control characters と
+            ## lxml からエラーを吐かれるので sanitize してから設定している
+            chat_elem_tree.text = sanitize_for_xml(chat_content)
 
         # 素の XML を .nicojk 形式向けにフォーマットする
         # lxml.etree を使うことで属性の順序を保持できる

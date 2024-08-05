@@ -554,8 +554,10 @@ class NDGRClient:
         """
 
         # コマンド文字列を生成
-        ## NDGR サーバーのコメントは現状常に匿名化されるため、mail フィールドに '184' を設定している
-        command = ['184']
+        command = []
+        # raw_user_id が 0 の場合はユーザー ID が匿名化されているため、"184" コマンドを付与する
+        if comment.raw_user_id == 0:
+            command.append('184')
         if comment.position != 'naka':
             command.append(comment.position)
         if comment.size != 'medium':
@@ -584,7 +586,8 @@ class NDGRClient:
             user_id = user_id,
             mail = ' '.join(command),
             premium = 1 if comment.account_status == 'Premium' else None,
-            anonymity = 1,  # コメントは常に匿名化されているため、常に anonymity フィールドに 1 を設定している
+            # raw_user_id が 0 の場合は anonymity フィールドに 1 を設定している
+            anonymity = 1 if comment.raw_user_id == 0 else None,
             content = comment.content,
         )
 

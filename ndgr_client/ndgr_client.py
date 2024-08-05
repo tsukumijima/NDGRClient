@@ -170,6 +170,12 @@ class NDGRClient:
                             # meta または message が存在しない場合は空の ChunkedMessage なので無視する
                             if not chunked_message.HasField('meta') or not chunked_message.HasField('message'):
                                 return
+                            # NicoLiveMessage の中に chat がない場合は運営コメントや市場などコメント以外のメッセージなので無視する
+                            if not chunked_message.message.HasField('chat'):
+                                return
+                            # Chat の中に Modifier がない場合 (存在するのか？) はコメントの位置や色などの情報が取れないのでとりあえず無視する
+                            if not chunked_message.message.chat.HasField('modifier'):
+                                return
 
                             # 取り回しやすいように NDGRComment Pydantic モデルに変換した上で、コールバック関数に渡す
                             comment = self.convertToNDGRComment(chunked_message)
@@ -286,6 +292,17 @@ class NDGRClient:
             ## このメソッドでもレスポンスはコメント投稿時刻昇順で返したいので、comments への追加方法を工夫している
             temp_comments: list[NDGRComment] = []
             for chunked_message in packed_segment.messages:
+
+                # meta または message が存在しない場合は空の ChunkedMessage なので無視する
+                if not chunked_message.HasField('meta') or not chunked_message.HasField('message'):
+                    continue
+                # NicoLiveMessage の中に chat がない場合は運営コメントや市場などコメント以外のメッセージなので無視する
+                if not chunked_message.message.HasField('chat'):
+                    continue
+                # Chat の中に Modifier がない場合 (存在するのか？) はコメントの位置や色などの情報が取れないのでとりあえず無視する
+                if not chunked_message.message.chat.HasField('modifier'):
+                    continue
+
                 # 取り回しやすいように NDGRComment Pydantic モデルに変換
                 comment = self.convertToNDGRComment(chunked_message)
                 temp_comments.append(comment)

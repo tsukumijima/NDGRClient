@@ -7,7 +7,7 @@ from typing import Literal, Union
 
 class NicoLiveProgramInfo(BaseModel):
     """
-    ニコニコ生放送 (Re:仮) の視聴ページから取得した embedded-data のうち、有用そうな情報
+    ニコニコ生放送の視聴ページから取得した embedded-data のうち、有用そうな情報
     フィールド名は embedded-data 内の各値のキー名と同一 (そのため敢えて camelCase のままにしている)
     """
     # 生放送の番組タイトル
@@ -28,19 +28,14 @@ class NicoLiveProgramInfo(BaseModel):
     endTime: int
     # 生放送番組の予定終了時刻 (Unix タイムスタンプ)
     scheduledEndTime: int
-    # 生放送番組のストリーミング URL
-    streamContentUri: str | None
-    # NDGR サーバーへの接続用 URL
-    ndgrProgramCommentViewUri: str
-    # NDGR サーバーへのコメント投稿用 URL
-    ndgrProgramCommentPostUri: str
+    # WebSocket サーバーへの接続用 URL
+    webSocketUrl: str
 
 
 class NDGRComment(BaseModel):
     """
     NDGR サーバーから返される Protobuf 形式のコメントデータのうち、有用そうな情報
     フィールド名は基本的に Protobuf の各値のキー名と同一
-    他にも (実際に送られてきていれば) 有用そうな情報は色々あるが、ニコニコ生放送 (Re:仮) の時点では下記情報くらいしか送信されていない
     """
     # コメント ID (?) / ex: "EhgKEgmBfWBX18SQARFaOaNDSRHkkhCy-h0"
     id: str
@@ -48,13 +43,16 @@ class NDGRComment(BaseModel):
     at: datetime
     # 生放送 ID (?) / ex: 345479473
     live_id: int
-    # 生のユーザー ID (ニコニコ生放送 (Re:仮) では現在常に 0)
+    # 生のユーザー ID
+    ## 184 コメントでは 0 (未設定) になる
     raw_user_id: int
-    # ハッシュ化されたユーザー ID / ex: "i:QKQvAEkmnovz"
+    # ハッシュ化されたユーザー ID / ex: "a:QKQvAEkmnovz"
     hashed_user_id: str
     # アカウント状態
     account_status: Literal['Standard', 'Premium']
-    # コメ番 (ニコニコ生放送 (Re:仮) ではなぜか設定されておらず、現在常に 0)
+    # コメ番
+    ## 従来のコメ番とは異なり、ベストエフォートでの採番となっており連番性・ユニーク性は一切保証されていないため注意
+    ## 「おおむねうまく値がセットされる想定ですが、それはたまたまそうなっているという前提のもと、割り切った用途でご利用ください」とのこと
     no: int
     # vposBaseTime から起算したコメント投稿時刻の相対時間 (1/100 秒単位) / ex: 18336492
     vpos: int
@@ -78,9 +76,11 @@ class NDGRComment(BaseModel):
     content: str
 
     def __str__(self) -> str:
+        # 生のユーザー ID が 0 より上だったら生のユーザー ID を、そうでなければ匿名化されたユーザー ID を表示する
+        user_id = self.raw_user_id if self.raw_user_id > 0 else self.hashed_user_id
         return (
-            f'[{self.at.strftime("%Y/%m/%d %H:%M:%S.%f")}] [white]{self.content}[/white]\n'
-            f'[grey70]User: {self.hashed_user_id} | Command: {self.position} {self.size} {self.color} {self.font}[/grey70]'
+            f'[{self.at.strftime("%Y/%m/%d %H:%M:%S.%f")}][No:{self.no}] [white]{self.content}[/white]\n'
+            f'[grey70]User: {user_id} | Command: {self.position} {self.size} {self.color} {self.font}[/grey70]'
         )
 
 

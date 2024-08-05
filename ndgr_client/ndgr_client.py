@@ -6,6 +6,7 @@ import json
 import httpx
 import lxml.etree as ET
 import re
+import websockets
 from bs4 import BeautifulSoup, Tag
 from datetime import datetime
 from rich import print
@@ -40,36 +41,42 @@ class NDGRClient:
     USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
     SEC_CH_UA = '"Chromium";v="126", "Google Chrome";v="126", "Not-A.Brand";v="99"'
 
-    # 旧来の実況 ID とニコニコ生放送 (Re:仮) の ID のマッピング
+    # 旧来の実況 ID とニコニコ生放送の ID のマッピング
+    ## 08/05 時点の値、今後変更される可能性もある
     JIKKYO_ID_TO_REKARI_ID_MAP: dict[str, str] = {
-        'jk0': 'kl1',  # サイバー攻撃からのニコニコ復旧を見守る場所 (ニコニコ実況ではないがデバッグ用として)
-        'jk1': 'kl11',
-        'jk2': 'kl12',
-        'jk4': 'kl14',
-        'jk5': 'kl15',
-        'jk6': 'kl16',
-        'jk7': 'kl17',
-        'jk8': 'kl18',
-        'jk9': 'kl19',
-        'jk101': 'kl13',
-        'jk211': 'kl20',
+        'jk1': 'lv345479988',
+        'jk2': 'lv345479989',
+        'jk4': 'lv345479991',
+        'jk5': 'lv345479993',
+        'jk6': 'lv345479994',
+        'jk7': 'lv345479995',
+        'jk8': 'lv345479996',
+        'jk9': 'lv345479997',
+        'jk101': 'lv345479990',
+        'jk211': 'lv345479998',
     }
 
 
-    def __init__(self, jikkyo_id: str, show_log: bool = False) -> None:
+    def __init__(self, nicolive_program_id: str, show_log: bool = False) -> None:
         """
         NDGRClient のコンストラクタ
 
         Args:
-            jikkyo_id (str): 旧来の実況 ID
+            nicolive_program_id (str): ニコニコ生放送の番組 ID (ex: lv345479988) or ニコニコ実況のチャンネル ID (ex: jk1, jk211)
             show_log (bool, default=False): グラフィカルなログを出力するかどうか
         """
 
-        if jikkyo_id not in self.JIKKYO_ID_TO_REKARI_ID_MAP:
-            raise ValueError(f'Invalid jikkyo_id: {jikkyo_id}')
+        if nicolive_program_id.startswith('jk'):
+            # nicolive_program_id が jk から始まる場合、ニコニコ実況 ID として扱う
+            if nicolive_program_id not in self.JIKKYO_ID_TO_REKARI_ID_MAP:
+                raise ValueError(f'Invalid jikkyo_id: {nicolive_program_id}')
+            self.nicolive_program_id = self.JIKKYO_ID_TO_REKARI_ID_MAP[nicolive_program_id]
+        else:
+            # それ以外の場合は lv から始まる通常のニコニコ生放送 ID として扱う
+            if not nicolive_program_id.startswith('lv'):
+                raise ValueError(f'Invalid nicolive_program_id: {nicolive_program_id}')
+            self.nicolive_program_id = nicolive_program_id
 
-        self.jikkyo_id = jikkyo_id
-        self.rekari_id = self.JIKKYO_ID_TO_REKARI_ID_MAP[jikkyo_id]
         self.show_log = show_log
 
         # httpx の非同期 HTTP クライアントのインスタンスを作成
@@ -97,7 +104,7 @@ class NDGRClient:
     async def streamComments(self, callback: Callable[[NDGRComment], Awaitable[None]]) -> None:
         """
         NDGR サーバーからリアルタイムコメントを随時ストリーミングし、コールバックに渡す
-        このメソッドは例外発生時を除き基本的に戻らない
+        このメソッドは例外発生時か放送終了時を除き、基本的に戻らない
 
         Args:
             callback (Callable[[NDGRComment], Awaitable[None]]): NDGR サーバーから受信したコメントを受け取るコールバック関数
@@ -109,7 +116,7 @@ class NDGRClient:
 
         # 視聴ページから NDGR View API の URI を取得する
         embedded_data = await self.parseWatchPage()
-        view_api_uri = await self.getNDGRViewAPIUri(embedded_data.ndgrProgramCommentViewUri)
+        view_api_uri = await self.getNDGRViewAPIUri(embedded_data.webSocketUrl)
 
         # NDGR View API への初回アクセスかどうかを表すフラグ
         is_first_time: bool = True
@@ -194,7 +201,7 @@ class NDGRClient:
 
         # 視聴ページから NDGR View API の URI を取得する
         embedded_data = await self.parseWatchPage()
-        view_api_uri = await self.getNDGRViewAPIUri(embedded_data.ndgrProgramCommentViewUri)
+        view_api_uri = await self.getNDGRViewAPIUri(embedded_data.webSocketUrl)
 
         # NDGR View API への初回アクセスかどうかを表すフラグ
         is_first_time: bool = True
@@ -305,7 +312,6 @@ class NDGRClient:
     async def parseWatchPage(self) -> NicoLiveProgramInfo:
         """
         視聴ページを解析し、埋め込みデータを取得する
-        大災害前のニコ生と異なり、ページをロードしただけではニコ生側の視聴セッションは初期化されない
 
         Returns:
             NicoLiveProgramInfo: 解析された埋め込みデータ
@@ -315,7 +321,7 @@ class NDGRClient:
             AssertionError: 解析に失敗した場合
         """
 
-        watch_page_url = f'https://live.nicovideo.jp/rekari/{self.rekari_id}'
+        watch_page_url = f'https://live.nicovideo.jp/watch/{self.nicolive_program_id}'
         response = await self.httpx_client.get(watch_page_url)
         response.raise_for_status()
 
@@ -327,7 +333,8 @@ class NDGRClient:
         embedded_data = json.loads(props)
         assert isinstance(embedded_data, dict)
         assert 'program' in embedded_data
-        assert 'temporaryMeasure' in embedded_data
+        assert 'site' in embedded_data
+        assert 'relive' in embedded_data['site']
 
         program_info = NicoLiveProgramInfo(
             title = embedded_data['program']['title'],
@@ -339,9 +346,7 @@ class NDGRClient:
             vposBaseTime = embedded_data['program']['vposBaseTime'],
             endTime = embedded_data['program']['endTime'],
             scheduledEndTime = embedded_data['program']['scheduledEndTime'],
-            streamContentUri = embedded_data['temporaryMeasure']['streamContentUri'],
-            ndgrProgramCommentViewUri = embedded_data['temporaryMeasure']['ndgrProgramCommentViewUri'],
-            ndgrProgramCommentPostUri = embedded_data['temporaryMeasure']['ndgrProgramCommentPostUri'],
+            webSocketUrl = embedded_data['site']['relive']['webSocketUrl'],
         )
         if self.show_log:
             print(f'Title:  {program_info.title} [{program_info.status}]')
@@ -353,15 +358,15 @@ class NDGRClient:
         return program_info
 
 
-    async def getNDGRViewAPIUri(self, ndgrProgramCommentViewUri: str) -> str:
+    async def getNDGRViewAPIUri(self, webSocketUrl: str) -> str:
         """
-        ニコニコ生放送 (Re:仮) の視聴ページから取得した ndgrProgramCommentViewUri を使って、NDGR View API の URI を取得する
+        ニコニコ生放送の視聴ページから取得した webSocketUrl に接続し、NDGR View API の URI を取得する
         Protobuf ストリームが返ることからして、NDGR サーバーは大災害前のニコ生の WebSocket API とは仕様が大きく異なる
         この API を叩くことで NDGR サーバー内部でどこまでリソース確保が行われているのかはよくわからない…
         (レスポンスヘッダーを見る限り CloudFront のキャッシュがヒットしてそうなので、多くの同時接続を捌けるようキャッシュされている？)
 
         Args:
-            ndgrProgramCommentViewUri (str): 視聴ページから取得した ndgrProgramCommentViewUri
+            webSocketUrl (str): 視聴ページから取得した webSocketUrl
 
         Returns:
             str: 当該番組に対応する NDGR View API の URI
@@ -371,14 +376,44 @@ class NDGRClient:
             AssertionError: 解析に失敗した場合
         """
 
-        response = await self.httpx_client.get(ndgrProgramCommentViewUri)
-        response.raise_for_status()
-        response_json = response.json()
+        # ニコニコ生放送の視聴ページから取得した webSocketUrl に接続
+        async with websockets.connect(webSocketUrl) as websocket:
 
-        assert isinstance(response_json, dict)
-        assert 'view' in response_json
-        assert isinstance(response_json['view'], str)
-        return response_json['view']
+            # 接続が確立したら、視聴開始リクエストを送る
+            await websocket.send(json.dumps({
+                'type': 'startWatching',
+                'data': {
+                    'reconnect': False,
+                },
+            }))
+
+            # メッセージを受信し、NDGR View API の URI を取得する
+            while True:
+                message = await websocket.recv()
+                data = json.loads(message)
+
+                # NDGR View API の URI を伝えるメッセージ
+                if data['type'] == 'messageServer':
+                    """
+                    "messageServer" メッセージのデータ構造は下記の通り
+                    {
+                        "type": "messageServer",
+                        "data": {
+                            "viewUri": "https://mpn.live.nicovideo.jp/api/view/v4/BBzJJgRIsDCeD3aiMwvVzh4SZ74yuKz5RRtRX9usHCw9075mEEV-GYMO8d0_RScEN9vzJ4zBMbHXSVY",
+                            "vposBaseTime": "2024-08-05T15:00:00+09:00",
+                            "hashedUserId": "a:XXXXXXXXXXXXXXX"  # ログイン時のみ設定される
+                        }
+                    }
+                    """
+
+                    # NDGR View API の URI を取得
+                    view_uri = data['data']['viewUri']
+                    if self.show_log:
+                        print(f'NDGR View API URI: {view_uri}')
+
+                    # WebSocket接続を閉じて NDGR View API の URI を返す
+                    await websocket.close()
+                    return view_uri
 
 
     ProtobufType = TypeVar('ProtobufType', chat.ChunkedEntry, chat.ChunkedMessage, chat.PackedSegment)
@@ -515,6 +550,13 @@ class NDGRClient:
         if comment.font != 'defont':
             command.append(comment.font)
 
+        # raw_user_id が 0 より上だったら生のユーザー ID を採用し、なければ hashed_user_id (匿名化されたユーザー ID) を採用
+        ## ユーザー ID にはニコニコ生放送からのコメントだと識別できる "nicolive:" の prefix を付与
+        if comment.raw_user_id > 0:
+            user_id = f'nicolive:{comment.raw_user_id}'
+        else:
+            user_id = f'nicolive:{comment.hashed_user_id}'
+
         # XMLCompatibleComment オブジェクトを生成
         xml_compatible_comment = XMLCompatibleComment(
             thread = str(comment.live_id),
@@ -522,7 +564,7 @@ class NDGRClient:
             vpos = comment.vpos,
             date = int(comment.at.timestamp()),
             date_usec = int((comment.at.timestamp() % 1) * 1000000),
-            user_id = f'rekari:{comment.hashed_user_id}',  # ニコニコ生放送 (Re:仮) のコメントだと識別できる prefix を付与
+            user_id = user_id,
             mail = ' '.join(command),
             premium = 1 if comment.account_status == 'Premium' else None,
             anonymity = 1,  # コメントは常に匿名化されているため、常に anonymity フィールドに 1 を設定している

@@ -195,17 +195,17 @@ class Chat(google.protobuf.message.Message):
         def WhichOneof(self, oneof_group: typing.Literal["color", b"color"]) -> typing.Literal["named_color", "full_color"] | None: ...
 
     CONTENT_FIELD_NUMBER: builtins.int
-    NAME_FIELD_NUMBER: builtins.int
     VPOS_FIELD_NUMBER: builtins.int
     ACCOUNT_STATUS_FIELD_NUMBER: builtins.int
+    NAME_FIELD_NUMBER: builtins.int
     RAW_USER_ID_FIELD_NUMBER: builtins.int
     HASHED_USER_ID_FIELD_NUMBER: builtins.int
     MODIFIER_FIELD_NUMBER: builtins.int
     NO_FIELD_NUMBER: builtins.int
     content: builtins.str
-    name: builtins.str
     vpos: builtins.int
     account_status: global___Chat.AccountStatus.ValueType
+    name: builtins.str
     raw_user_id: builtins.int
     hashed_user_id: builtins.str
     no: builtins.int
@@ -215,17 +215,22 @@ class Chat(google.protobuf.message.Message):
         self,
         *,
         content: builtins.str = ...,
-        name: builtins.str = ...,
         vpos: builtins.int = ...,
         account_status: global___Chat.AccountStatus.ValueType = ...,
-        raw_user_id: builtins.int = ...,
-        hashed_user_id: builtins.str = ...,
+        name: builtins.str | None = ...,
+        raw_user_id: builtins.int | None = ...,
+        hashed_user_id: builtins.str | None = ...,
         modifier: global___Chat.Modifier | None = ...,
         no: builtins.int = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["hashed_user_id", b"hashed_user_id", "modifier", b"modifier", "raw_user_id", b"raw_user_id", "source", b"source"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["account_status", b"account_status", "content", b"content", "hashed_user_id", b"hashed_user_id", "modifier", b"modifier", "name", b"name", "no", b"no", "raw_user_id", b"raw_user_id", "source", b"source", "vpos", b"vpos"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["source", b"source"]) -> typing.Literal["raw_user_id", "hashed_user_id"] | None: ...
+    def HasField(self, field_name: typing.Literal["_hashed_user_id", b"_hashed_user_id", "_name", b"_name", "_raw_user_id", b"_raw_user_id", "hashed_user_id", b"hashed_user_id", "modifier", b"modifier", "name", b"name", "raw_user_id", b"raw_user_id"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["_hashed_user_id", b"_hashed_user_id", "_name", b"_name", "_raw_user_id", b"_raw_user_id", "account_status", b"account_status", "content", b"content", "hashed_user_id", b"hashed_user_id", "modifier", b"modifier", "name", b"name", "no", b"no", "raw_user_id", b"raw_user_id", "vpos", b"vpos"]) -> None: ...
+    @typing.overload
+    def WhichOneof(self, oneof_group: typing.Literal["_hashed_user_id", b"_hashed_user_id"]) -> typing.Literal["hashed_user_id"] | None: ...
+    @typing.overload
+    def WhichOneof(self, oneof_group: typing.Literal["_name", b"_name"]) -> typing.Literal["name"] | None: ...
+    @typing.overload
+    def WhichOneof(self, oneof_group: typing.Literal["_raw_user_id", b"_raw_user_id"]) -> typing.Literal["raw_user_id"] | None: ...
 
 global___Chat = Chat
 
@@ -558,73 +563,6 @@ class GameUpdate(google.protobuf.message.Message):
 global___GameUpdate = GameUpdate
 
 @typing.final
-class FingerPrint(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    class _Position:
-        ValueType = typing.NewType("ValueType", builtins.int)
-        V: typing_extensions.TypeAlias = ValueType
-
-    class _PositionEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[FingerPrint._Position.ValueType], builtins.type):
-        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
-        off: FingerPrint._Position.ValueType  # 0
-        hidarishita: FingerPrint._Position.ValueType  # 1
-        shita: FingerPrint._Position.ValueType  # 2
-        migishita: FingerPrint._Position.ValueType  # 3
-        hidari: FingerPrint._Position.ValueType  # 4
-        naka: FingerPrint._Position.ValueType  # 5
-        migi: FingerPrint._Position.ValueType  # 6
-        hidariue: FingerPrint._Position.ValueType  # 7
-        ue: FingerPrint._Position.ValueType  # 8
-        migiue: FingerPrint._Position.ValueType  # 9
-
-    class Position(_Position, metaclass=_PositionEnumTypeWrapper): ...
-    off: FingerPrint.Position.ValueType  # 0
-    hidarishita: FingerPrint.Position.ValueType  # 1
-    shita: FingerPrint.Position.ValueType  # 2
-    migishita: FingerPrint.Position.ValueType  # 3
-    hidari: FingerPrint.Position.ValueType  # 4
-    naka: FingerPrint.Position.ValueType  # 5
-    migi: FingerPrint.Position.ValueType  # 6
-    hidariue: FingerPrint.Position.ValueType  # 7
-    ue: FingerPrint.Position.ValueType  # 8
-    migiue: FingerPrint.Position.ValueType  # 9
-
-    class _Size:
-        ValueType = typing.NewType("ValueType", builtins.int)
-        V: typing_extensions.TypeAlias = ValueType
-
-    class _SizeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[FingerPrint._Size.ValueType], builtins.type):
-        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
-        small: FingerPrint._Size.ValueType  # 0
-        middle: FingerPrint._Size.ValueType  # 1
-        big: FingerPrint._Size.ValueType  # 2
-
-    class Size(_Size, metaclass=_SizeEnumTypeWrapper): ...
-    small: FingerPrint.Size.ValueType  # 0
-    middle: FingerPrint.Size.ValueType  # 1
-    big: FingerPrint.Size.ValueType  # 2
-
-    POSITION_FIELD_NUMBER: builtins.int
-    SIZE_FIELD_NUMBER: builtins.int
-    DURATION_FIELD_NUMBER: builtins.int
-    position: global___FingerPrint.Position.ValueType
-    size: global___FingerPrint.Size.ValueType
-    @property
-    def duration(self) -> google.protobuf.duration_pb2.Duration: ...
-    def __init__(
-        self,
-        *,
-        position: global___FingerPrint.Position.ValueType = ...,
-        size: global___FingerPrint.Size.ValueType = ...,
-        duration: google.protobuf.duration_pb2.Duration | None = ...,
-    ) -> None: ...
-    def HasField(self, field_name: typing.Literal["duration", b"duration"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["duration", b"duration", "position", b"position", "size", b"size"]) -> None: ...
-
-global___FingerPrint = FingerPrint
-
-@typing.final
 class TrialPanel(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -773,7 +711,7 @@ class Statistics(google.protobuf.message.Message):
 global___Statistics = Statistics
 
 @typing.final
-class Marque(google.protobuf.message.Message):
+class Marquee(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     @typing.final
@@ -798,17 +736,17 @@ class Marque(google.protobuf.message.Message):
 
     DISPLAY_FIELD_NUMBER: builtins.int
     @property
-    def display(self) -> global___Marque.Display: ...
+    def display(self) -> global___Marquee.Display: ...
     def __init__(
         self,
         *,
-        display: global___Marque.Display | None = ...,
+        display: global___Marquee.Display | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["_display", b"_display", "display", b"display"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing.Literal["_display", b"_display", "display", b"display"]) -> None: ...
     def WhichOneof(self, oneof_group: typing.Literal["_display", b"_display"]) -> typing.Literal["display"] | None: ...
 
-global___Marque = Marque
+global___Marquee = Marquee
 
 @typing.final
 class Enquete(google.protobuf.message.Message):

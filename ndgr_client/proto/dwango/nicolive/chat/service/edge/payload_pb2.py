@@ -28,7 +28,7 @@ from ndgr_client.proto.dwango.nicolive.chat.data import state_pb2 as dwango_dot_
 from ndgr_client.proto.dwango.nicolive.chat.data import origin_pb2 as dwango_dot_nicolive_dot_chat_dot_data_dot_origin__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n/dwango/nicolive/chat/service/edge/payload.proto\x12!dwango.nicolive.chat.service.edge\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\'dwango/nicolive/chat/data/message.proto\x1a%dwango/nicolive/chat/data/state.proto\x1a&dwango/nicolive/chat/data/origin.proto\"\xd2\x02\n\x0e\x43hunkedMessage\x12\x44\n\x04meta\x18\x01 \x01(\x0b\x32\x36.dwango.nicolive.chat.service.edge.ChunkedMessage.Meta\x12=\n\x07message\x18\x02 \x01(\x0b\x32*.dwango.nicolive.chat.data.NicoliveMessageH\x00\x12\x39\n\x05state\x18\x04 \x01(\x0b\x32(.dwango.nicolive.chat.data.NicoliveStateH\x00\x1au\n\x04Meta\x12\n\n\x02id\x18\x01 \x01(\t\x12&\n\x02\x61t\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x39\n\x06origin\x18\x03 \x01(\x0b\x32).dwango.nicolive.chat.data.NicoliveOriginB\t\n\x07payload\"\x9e\x02\n\rPackedSegment\x12\x43\n\x08messages\x18\x01 \x03(\x0b\x32\x31.dwango.nicolive.chat.service.edge.ChunkedMessage\x12\x43\n\x04next\x18\x02 \x01(\x0b\x32\x35.dwango.nicolive.chat.service.edge.PackedSegment.Next\x12P\n\x08snapshot\x18\x03 \x01(\x0b\x32>.dwango.nicolive.chat.service.edge.PackedSegment.StateSnapshot\x1a\x13\n\x04Next\x12\x0b\n\x03uri\x18\x01 \x01(\t\x1a\x1c\n\rStateSnapshot\x12\x0b\n\x03uri\x18\x01 \x01(\t\"\xd6\x02\n\x0c\x43hunkedEntry\x12\x46\n\x08\x62\x61\x63kward\x18\x02 \x01(\x0b\x32\x32.dwango.nicolive.chat.service.edge.BackwardSegmentH\x00\x12\x45\n\x08previous\x18\x03 \x01(\x0b\x32\x31.dwango.nicolive.chat.service.edge.MessageSegmentH\x00\x12\x44\n\x07segment\x18\x01 \x01(\x0b\x32\x31.dwango.nicolive.chat.service.edge.MessageSegmentH\x00\x12L\n\x04next\x18\x04 \x01(\x0b\x32<.dwango.nicolive.chat.service.edge.ChunkedEntry.ReadyForNextH\x00\x1a\x1a\n\x0cReadyForNext\x12\n\n\x02\x61t\x18\x01 \x01(\x03\x42\x07\n\x05\x65ntry\"r\n\x0eMessageSegment\x12(\n\x04\x66rom\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12)\n\x05until\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0b\n\x03uri\x18\x03 \x01(\t\"\xd6\x01\n\x0f\x42\x61\x63kwardSegment\x12)\n\x05until\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x46\n\x07segment\x18\x02 \x01(\x0b\x32\x35.dwango.nicolive.chat.service.edge.PackedSegment.Next\x12P\n\x08snapshot\x18\x03 \x01(\x0b\x32>.dwango.nicolive.chat.service.edge.PackedSegment.StateSnapshotb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n/dwango/nicolive/chat/service/edge/payload.proto\x12!dwango.nicolive.chat.service.edge\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\'dwango/nicolive/chat/data/message.proto\x1a%dwango/nicolive/chat/data/state.proto\x1a&dwango/nicolive/chat/data/origin.proto\"\xb5\x03\n\x0e\x43hunkedMessage\x12\x44\n\x04meta\x18\x01 \x01(\x0b\x32\x36.dwango.nicolive.chat.service.edge.ChunkedMessage.Meta\x12=\n\x07message\x18\x02 \x01(\x0b\x32*.dwango.nicolive.chat.data.NicoliveMessageH\x00\x12\x39\n\x05state\x18\x04 \x01(\x0b\x32(.dwango.nicolive.chat.data.NicoliveStateH\x00\x12J\n\x06signal\x18\x05 \x01(\x0e\x32\x38.dwango.nicolive.chat.service.edge.ChunkedMessage.SignalH\x00\x1au\n\x04Meta\x12\n\n\x02id\x18\x01 \x01(\t\x12&\n\x02\x61t\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x39\n\x06origin\x18\x03 \x01(\x0b\x32).dwango.nicolive.chat.data.NicoliveOrigin\"\x15\n\x06Signal\x12\x0b\n\x07\x46lushed\x10\x00\x42\t\n\x07payload\"\x9e\x02\n\rPackedSegment\x12\x43\n\x08messages\x18\x01 \x03(\x0b\x32\x31.dwango.nicolive.chat.service.edge.ChunkedMessage\x12\x43\n\x04next\x18\x02 \x01(\x0b\x32\x35.dwango.nicolive.chat.service.edge.PackedSegment.Next\x12P\n\x08snapshot\x18\x03 \x01(\x0b\x32>.dwango.nicolive.chat.service.edge.PackedSegment.StateSnapshot\x1a\x13\n\x04Next\x12\x0b\n\x03uri\x18\x01 \x01(\t\x1a\x1c\n\rStateSnapshot\x12\x0b\n\x03uri\x18\x01 \x01(\t\"\xd6\x02\n\x0c\x43hunkedEntry\x12\x46\n\x08\x62\x61\x63kward\x18\x02 \x01(\x0b\x32\x32.dwango.nicolive.chat.service.edge.BackwardSegmentH\x00\x12\x45\n\x08previous\x18\x03 \x01(\x0b\x32\x31.dwango.nicolive.chat.service.edge.MessageSegmentH\x00\x12\x44\n\x07segment\x18\x01 \x01(\x0b\x32\x31.dwango.nicolive.chat.service.edge.MessageSegmentH\x00\x12L\n\x04next\x18\x04 \x01(\x0b\x32<.dwango.nicolive.chat.service.edge.ChunkedEntry.ReadyForNextH\x00\x1a\x1a\n\x0cReadyForNext\x12\n\n\x02\x61t\x18\x01 \x01(\x03\x42\x07\n\x05\x65ntry\"r\n\x0eMessageSegment\x12(\n\x04\x66rom\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12)\n\x05until\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0b\n\x03uri\x18\x03 \x01(\t\"\xd6\x01\n\x0f\x42\x61\x63kwardSegment\x12)\n\x05until\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x46\n\x07segment\x18\x02 \x01(\x0b\x32\x35.dwango.nicolive.chat.service.edge.PackedSegment.Next\x12P\n\x08snapshot\x18\x03 \x01(\x0b\x32>.dwango.nicolive.chat.service.edge.PackedSegment.StateSnapshotb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,21 +36,23 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'dwango.nicolive.chat.servic
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_CHUNKEDMESSAGE']._serialized_start=240
-  _globals['_CHUNKEDMESSAGE']._serialized_end=578
-  _globals['_CHUNKEDMESSAGE_META']._serialized_start=450
-  _globals['_CHUNKEDMESSAGE_META']._serialized_end=567
-  _globals['_PACKEDSEGMENT']._serialized_start=581
-  _globals['_PACKEDSEGMENT']._serialized_end=867
-  _globals['_PACKEDSEGMENT_NEXT']._serialized_start=818
-  _globals['_PACKEDSEGMENT_NEXT']._serialized_end=837
-  _globals['_PACKEDSEGMENT_STATESNAPSHOT']._serialized_start=839
-  _globals['_PACKEDSEGMENT_STATESNAPSHOT']._serialized_end=867
-  _globals['_CHUNKEDENTRY']._serialized_start=870
-  _globals['_CHUNKEDENTRY']._serialized_end=1212
-  _globals['_CHUNKEDENTRY_READYFORNEXT']._serialized_start=1177
-  _globals['_CHUNKEDENTRY_READYFORNEXT']._serialized_end=1203
-  _globals['_MESSAGESEGMENT']._serialized_start=1214
-  _globals['_MESSAGESEGMENT']._serialized_end=1328
-  _globals['_BACKWARDSEGMENT']._serialized_start=1331
-  _globals['_BACKWARDSEGMENT']._serialized_end=1545
+  _globals['_CHUNKEDMESSAGE']._serialized_end=677
+  _globals['_CHUNKEDMESSAGE_META']._serialized_start=526
+  _globals['_CHUNKEDMESSAGE_META']._serialized_end=643
+  _globals['_CHUNKEDMESSAGE_SIGNAL']._serialized_start=645
+  _globals['_CHUNKEDMESSAGE_SIGNAL']._serialized_end=666
+  _globals['_PACKEDSEGMENT']._serialized_start=680
+  _globals['_PACKEDSEGMENT']._serialized_end=966
+  _globals['_PACKEDSEGMENT_NEXT']._serialized_start=917
+  _globals['_PACKEDSEGMENT_NEXT']._serialized_end=936
+  _globals['_PACKEDSEGMENT_STATESNAPSHOT']._serialized_start=938
+  _globals['_PACKEDSEGMENT_STATESNAPSHOT']._serialized_end=966
+  _globals['_CHUNKEDENTRY']._serialized_start=969
+  _globals['_CHUNKEDENTRY']._serialized_end=1311
+  _globals['_CHUNKEDENTRY_READYFORNEXT']._serialized_start=1276
+  _globals['_CHUNKEDENTRY_READYFORNEXT']._serialized_end=1302
+  _globals['_MESSAGESEGMENT']._serialized_start=1313
+  _globals['_MESSAGESEGMENT']._serialized_end=1427
+  _globals['_BACKWARDSEGMENT']._serialized_start=1430
+  _globals['_BACKWARDSEGMENT']._serialized_end=1644
 # @@protoc_insertion_point(module_scope)

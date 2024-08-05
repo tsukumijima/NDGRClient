@@ -10,15 +10,33 @@ import dwango.nicolive.chat.data.origin_pb2
 import dwango.nicolive.chat.data.state_pb2
 import google.protobuf.descriptor
 import google.protobuf.internal.containers
+import google.protobuf.internal.enum_type_wrapper
 import google.protobuf.message
 import google.protobuf.timestamp_pb2
+import sys
 import typing
+
+if sys.version_info >= (3, 10):
+    import typing as typing_extensions
+else:
+    import typing_extensions
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
 
 @typing.final
 class ChunkedMessage(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    class _Signal:
+        ValueType = typing.NewType("ValueType", builtins.int)
+        V: typing_extensions.TypeAlias = ValueType
+
+    class _SignalEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ChunkedMessage._Signal.ValueType], builtins.type):
+        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+        Flushed: ChunkedMessage._Signal.ValueType  # 0
+
+    class Signal(_Signal, metaclass=_SignalEnumTypeWrapper): ...
+    Flushed: ChunkedMessage.Signal.ValueType  # 0
 
     @typing.final
     class Meta(google.protobuf.message.Message):
@@ -45,6 +63,8 @@ class ChunkedMessage(google.protobuf.message.Message):
     META_FIELD_NUMBER: builtins.int
     MESSAGE_FIELD_NUMBER: builtins.int
     STATE_FIELD_NUMBER: builtins.int
+    SIGNAL_FIELD_NUMBER: builtins.int
+    signal: global___ChunkedMessage.Signal.ValueType
     @property
     def meta(self) -> global___ChunkedMessage.Meta: ...
     @property
@@ -57,10 +77,11 @@ class ChunkedMessage(google.protobuf.message.Message):
         meta: global___ChunkedMessage.Meta | None = ...,
         message: dwango.nicolive.chat.data.message_pb2.NicoliveMessage | None = ...,
         state: dwango.nicolive.chat.data.state_pb2.NicoliveState | None = ...,
+        signal: global___ChunkedMessage.Signal.ValueType = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["message", b"message", "meta", b"meta", "payload", b"payload", "state", b"state"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["message", b"message", "meta", b"meta", "payload", b"payload", "state", b"state"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["payload", b"payload"]) -> typing.Literal["message", "state"] | None: ...
+    def HasField(self, field_name: typing.Literal["message", b"message", "meta", b"meta", "payload", b"payload", "signal", b"signal", "state", b"state"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["message", b"message", "meta", b"meta", "payload", b"payload", "signal", b"signal", "state", b"state"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["payload", b"payload"]) -> typing.Literal["message", "state", "signal"] | None: ...
 
 global___ChunkedMessage = ChunkedMessage
 

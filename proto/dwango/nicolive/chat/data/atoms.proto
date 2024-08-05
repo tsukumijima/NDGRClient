@@ -5,12 +5,8 @@ import "google/protobuf/duration.proto";
 
 
 message Chat {
-
+  
   string content = 1;
-
-
-  string name = 2;
-
 
   int32 vpos = 3;
 
@@ -18,18 +14,22 @@ message Chat {
     Standard = 0;
     Premium = 1;
   }
-
+  
   AccountStatus account_status = 4;
 
+  
+  optional string name = 2;
 
-  oneof source {
-    int64 raw_user_id = 5;
-    string hashed_user_id = 6;
-  }
+  
+  optional int64 raw_user_id = 5;
 
+  
+  
+  optional string hashed_user_id = 6;
 
+  
   message Modifier {
-
+    
     enum Pos {
       naka = 0;
       shita = 1;
@@ -37,7 +37,7 @@ message Chat {
     }
     Pos position = 1;
 
-
+    
     enum Size {
       medium = 0;
       small = 1;
@@ -45,7 +45,7 @@ message Chat {
     }
     Size size = 2;
 
-
+    
     enum ColorName {
       white = 0;
       red = 1;
@@ -69,7 +69,7 @@ message Chat {
       black2 = 19;
     }
 
-
+    
     message FullColor {
       int32 r = 1;
       int32 g = 2;
@@ -88,23 +88,23 @@ message Chat {
     Font font = 5;
 
     enum Opacity {
-
+      
       Normal = 0;
-
+      
       Translucent = 1;
     }
     Opacity opacity = 6;
   }
   Modifier modifier = 7;
 
-
-
-
-
-
-
-
-
+  
+  
+  
+  
+  
+  
+  
+  
   int32 no = 8;
 }
 
@@ -136,28 +136,28 @@ message Redirect {
 
 message SimpleNotification {
   oneof message {
-
+    
     string ichiba = 1;
 
-
+    
     string quote = 2;
 
-
+    
     string emotion = 3;
 
-
+    
     string cruise = 4;
 
-
+    
     string program_extended = 5;
 
-
+    
     string ranking_in = 6;
 
-
+    
     string ranking_updated = 8;
 
-
+    
     string visited = 7;
   }
 }
@@ -230,54 +230,30 @@ message GameUpdate {
 }
 
 
-message FingerPrint {
-  enum Position {
-    off = 0;
-    hidarishita = 1;
-    shita = 2;
-    migishita = 3;
-    hidari = 4;
-    naka = 5;
-    migi = 6;
-    hidariue = 7;
-    ue = 8;
-    migiue = 9;
-  }
-  Position position = 1;
-
-  enum Size {
-    small = 0;
-    middle = 1;
-    big = 2;
-  }
-  Size size = 2;
-
-  google.protobuf.Duration duration = 4;
-}
 
 
 
 message TrialPanel {
   enum Panel {
-    Hidden = 0;
-    Display = 1;
+    Hidden = 0;  
+    Display = 1; 
   }
-
+  
   Panel panel = 1;
 
   enum Mode {
-    Allowed = 0;
+    Allowed = 0;   
     Restricted = 1;
-    Forbidden = 2;
+    Forbidden = 2; 
   }
-
+  
   Mode unqualified_user = 2;
 }
 
 message ProgramStatus {
   enum State {
     Unknown = 0;
-
+    
     Ended = 1;
   }
   State state = 1;
@@ -299,57 +275,57 @@ message TagUpdated {
 
 
 message Statistics {
-
+  
   optional int64 viewers = 1;
 
-
+  
   optional int64 comments = 2;
 
-
+  
   optional int64 ad_points = 3;
 
-
+  
   optional int64 gift_points = 4;
 
   reserved 5;
 }
 
 
-message Marque {
+message Marquee {
   message Display {
     OperatorComment operator_comment = 1;
 
-
+    
     optional google.protobuf.Duration duration = 3;
   }
-
+  
   optional Display display = 1;
 }
 
 
 message Enquete {
-
+  
   string question = 1;
 
-
+  
   message Choice {
-
+    
     string description = 1;
 
-
-
+    
+    
     optional int32 per_mille = 3;
   }
   repeated Choice choices = 2;
 
   enum Status {
-
+    
     Closed = 0;
 
-
+    
     Poll = 1;
 
-
+    
     Result = 2;
   }
 

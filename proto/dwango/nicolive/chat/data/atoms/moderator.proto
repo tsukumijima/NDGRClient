@@ -17,11 +17,11 @@ message ModeratorUpdated {
         ADD = 0;
         DELETE = 1;
     }
-
+    
     ModeratorOperation operation = 1;
-
+    
     ModeratorUserInfo operator = 2;
-
+    
     google.protobuf.Timestamp updatedAt = 3;
 }
 
@@ -36,17 +36,17 @@ message SSNGUpdated {
         WORD = 1;
         COMMAND = 2;
     }
-
+    
     SSNGOperation operation = 1;
-
+    
     int64 ssng_id = 2;
-
+    
     ModeratorUserInfo operator = 3;
-
+    
     optional SSNGType type = 4;
-
+    
     optional string source = 5;
-
+    
     optional google.protobuf.Timestamp updatedAt = 6;
 }
 
@@ -59,11 +59,11 @@ message ModerationAnnouncement {
         SLANDER = 3;
         PERSONAL_INFORMATION = 4;
     }
-
+    
     optional string message = 1;
-
+    
     repeated GuidelineItem guidelineItems = 2;
-
+    
     google.protobuf.Timestamp updatedAt = 3;
 }
 

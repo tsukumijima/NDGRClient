@@ -14,11 +14,11 @@ from ndgr_client.utils import AsyncTyper
 app = AsyncTyper(help='NDGRClient: Nicolive NDGR Server Client Library')
 
 @app.command(help='Stream comments from NDGR server.')
-async def stream(jikkyo_id: str = typer.Argument(help='Jikkyo ID (jk0, jk1, jk9, jk211 ...)')):
+async def stream(nicolive_program_id: str = typer.Argument(help='Nicolive program ID (ex: jk1, jk9, jk211 / lv345479988)')):
     print(Rule(characters='-', style=Style(color='#E33157')))
 
     # NDGRClient を初期化
-    ndgr_client = NDGRClient(jikkyo_id, show_log=True)
+    ndgr_client = NDGRClient(nicolive_program_id, show_log=True)
 
     # コメントをエンドレスでストリーミング開始
     async def callback(comment: NDGRComment):
@@ -28,16 +28,16 @@ async def stream(jikkyo_id: str = typer.Argument(help='Jikkyo ID (jk0, jk1, jk9,
 
 @app.command(help='Download backward comments (kakolog) from NDGR server.')
 async def download(
-    jikkyo_id: str = typer.Argument(help='Jikkyo ID (jk0, jk1, jk9, jk211 ...) or "all"'),
+    nicolive_program_id: str = typer.Argument(help='Nicolive program ID (ex: jk1, jk9, jk211 / lv345479988) or "all"'),
     output_dir: Path = typer.Option(default=Path('.'), help='Output directory'),
 ):
     print(Rule(characters='-', style=Style(color='#E33157')))
 
     # jikkyo_id に 'all' が指定された場合は全てのチャンネルをダウンロード
-    if jikkyo_id == 'all':
-        jikkyo_ids = [id for id in NDGRClient.JIKKYO_ID_TO_REKARI_ID_MAP.keys() if id != 'jk0']
+    if nicolive_program_id == 'all':
+        jikkyo_ids = [id for id in NDGRClient.JIKKYO_ID_TO_REKARI_ID_MAP.keys()]
     else:
-        jikkyo_ids = [jikkyo_id]
+        jikkyo_ids = [nicolive_program_id]
 
     comment_counts: dict[str, int] = {}
     for jid in jikkyo_ids:
@@ -57,7 +57,7 @@ async def download(
         print(f'Saved to {output_dir / f"{jid}.nicojk"}')
         print(Rule(characters='-', style=Style(color='#E33157')))
 
-    if jikkyo_id == 'all':
+    if nicolive_program_id == 'all':
         print('Download completed for all channels.')
         for jid, count in comment_counts.items():
             print(f'{jid}: {count} comments')

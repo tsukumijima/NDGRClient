@@ -5,10 +5,14 @@
 
 ![Screenshot](https://github.com/user-attachments/assets/16b092dd-419a-421a-8eae-46a20b106298)
 
+> [!WARNING]
+> この README の内容は 2024/07/20 時点の情報です。  
+> 手が回っておらずニコニコ復活後の新しい情報には更新できていませんのでご了承ください。
+
 ## About
 
-[ニコニコ生放送 (Re:仮)](https://live.nicovideo.jp/rekari/kl1) で運用されている NDGR サーバーのクライアントライブラリと、ライブラリを活用したコマンドラインツールです。  
-主に [ニコニコ実況 (Re:仮)](https://originalnews.nico/464285) のコメントを取得する用途での利用を想定しています。
+[ニコニコ生放送](https://live.nicovideo.jp/) で運用されている NDGR サーバーのクライアントライブラリと、ライブラリを活用したコマンドラインツールです。  
+主に [ニコニコ実況](https://originalnews.nico/464285) のコメントを取得する用途での利用を想定しています。
 
 > [!NOTE]
 > **NDGR サーバーとは？**  

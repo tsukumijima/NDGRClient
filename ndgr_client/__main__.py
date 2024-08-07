@@ -7,7 +7,6 @@ from rich.style import Style
 
 from ndgr_client import __version__
 from ndgr_client.ndgr_client import NDGRClient
-from ndgr_client.constants import NDGRComment
 from ndgr_client.utils import AsyncTyper
 
 
@@ -21,9 +20,9 @@ async def stream(nicolive_program_id: str = typer.Argument(help='Nicolive progra
     ndgr_client = NDGRClient(nicolive_program_id, show_log=True)
 
     # コメントをエンドレスでストリーミング開始
-    async def callback(comment: NDGRComment):
-        pass
-    await ndgr_client.streamComments(callback)
+    async for comment in ndgr_client.streamComments():
+        print(str(comment))
+        print(Rule(characters='-', style=Style(color='#E33157')))
 
 
 @app.command(help='Download backward comments (kakolog) from NDGR server.')

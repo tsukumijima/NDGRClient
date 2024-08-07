@@ -183,20 +183,25 @@ global___ChunkedEntry = ChunkedEntry
 class MessageSegment(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    FROM_FIELD_NUMBER: builtins.int
+    FROM__FIELD_NUMBER: builtins.int
     UNTIL_FIELD_NUMBER: builtins.int
     URI_FIELD_NUMBER: builtins.int
     uri: builtins.str
+    @property
+    def from_(self) -> google.protobuf.timestamp_pb2.Timestamp:
+        """Python では from が予約されているため from_ として命名している"""
+
     @property
     def until(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
     def __init__(
         self,
         *,
+        from_: google.protobuf.timestamp_pb2.Timestamp | None = ...,
         until: google.protobuf.timestamp_pb2.Timestamp | None = ...,
         uri: builtins.str = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["from", b"from", "until", b"until"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["from", b"from", "until", b"until", "uri", b"uri"]) -> None: ...
+    def HasField(self, field_name: typing.Literal["from_", b"from_", "until", b"until"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["from_", b"from_", "until", b"until", "uri", b"uri"]) -> None: ...
 
 global___MessageSegment = MessageSegment
 

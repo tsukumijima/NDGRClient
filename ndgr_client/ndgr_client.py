@@ -6,13 +6,14 @@ import json
 import httpx
 import lxml.etree as ET
 import re
+import traceback
 import websockets
 from bs4 import BeautifulSoup, Tag
-from datetime import datetime, timedelta
+from datetime import datetime
 from rich import print
 from rich.rule import Rule
 from rich.style import Style
-from typing import Any, AsyncGenerator, Awaitable, Callable, cast, Type, TypeVar
+from typing import Any, AsyncGenerator, cast, Type, TypeVar
 
 from ndgr_client.protobuf_stream_reader import ProtobufStreamReader
 from ndgr_client.proto.dwango.nicolive.chat.data import atoms_pb2 as atoms
@@ -100,17 +101,14 @@ class NDGRClient:
             follow_redirects = True,
         )
 
-        # セグメントの prefetch 用のキュー
-        self.prefetch_queue = asyncio.Queue()
 
-
-    async def streamComments(self, callback: Callable[[NDGRComment], Awaitable[None]]) -> None:
+    async def streamComments(self) -> AsyncGenerator[NDGRComment, None]:
         """
-        NDGR サーバーからリアルタイムコメントを随時ストリーミングし、コールバックに渡す
-        このメソッドは例外発生時か放送終了時を除き、基本的に戻らない
+        NDGR サーバーからリアルタイムコメントを随時ストリーミングする非同期ジェネレータ
+        このメソッドは例外発生時か放送終了時を除き、基本的に終了しない
 
-        Args:
-            callback (Callable[[NDGRComment], Awaitable[None]]): NDGR サーバーから受信したコメントを受け取るコールバック関数
+        Yields:
+            NDGRComment: NDGR サーバーから受信したコメント
 
         Raises:
             httpx.HTTPStatusError: HTTP リクエストが失敗した場合
@@ -125,113 +123,62 @@ class NDGRClient:
         is_first_time: bool = True
         # NDGR View API への次回アクセス時に ?at= に渡すタイムスタンプ (が格納された ChunkedEntry.ReadyForNext)
         ready_for_next: chat.ChunkedEntry.ReadyForNext | None = None
-        # 既知の NDGR Segment API の URI を格納する集合
-        already_know_segment_uris: set[str] = set()
+        # 既知のメッセージ ID を格納する集合
+        known_message_ids: set[str] = set()
 
-        # prefetch タスクを開始
-        prefetch_task = asyncio.create_task(self.prefetchSegments())
-
-        try:
-            # NDGR View API の持続期間は一定期間ごとに区切られているらしく、
-            # 一定期間が経過すると next フィールドに設定されている次の NDGR View API への再接続を求められる
-            while True:
-                # 状態次第で NDGR View API の ?at= に渡すタイムスタンプを決定する
-                # 初回アクセス時は ?at=now を指定する
-                # 次回アクセス時は ?at= に ChunkedEntry.ReadyForNext.at に設定されている Unix タイムスタンプを指定する
-                at: str | None = None
-                if ready_for_next is not None:
-                    at = str(ready_for_next.at)
-                elif is_first_time:
-                    at = 'now'
-                    is_first_time = False
-
-                ready_for_next = None
-
-                async for chunked_entry in self.fetchView(view_api_uri, at):
-                    # next フィールドが設定されているとき、NDGR View API への次回アクセス時に ?at= に指定するタイムスタンプ
-                    # (が格納された ChunkedEntry.ReadyForNext) を更新する
-                    if chunked_entry.HasField('next'):
-                        ready_for_next = chunked_entry.next
-
-                    # segment フィールドが設定されているとき、NDGR Segment API からのメッセージ受信を開始する
-                    elif chunked_entry.HasField('segment'):
-                        await self.handleSegment(chunked_entry.segment, callback, already_know_segment_uris)
-
-        finally:
-            # prefetch タスクをキャンセル
-            prefetch_task.cancel()
-
-
-    async def fetchView(self, view_api_uri: str, at: str | None) -> AsyncGenerator[chat.ChunkedEntry, None]:
-        """
-        NDGR View API から ChunkedEntry を受信する
-
-        Args:
-            view_api_uri (str): NDGR View API の URI
-            at (str | None): NDGR View API へのアクセス時に ?at= に指定するタイムスタンプ
-
-        Yields:
-            chunked_entry (chat.ChunkedEntry): NDGR View API から受信した ChunkedEntry
-        """
-        url = f'{view_api_uri}?at={at}' if at else view_api_uri
-        async for chunked_entry in self.readProtobufStream(url, chat.ChunkedEntry):
-            yield chunked_entry
-
-
-    async def handleSegment(self,
-        segment: chat.MessageSegment,
-        callback: Callable[[NDGRComment], Awaitable[None]],
-        already_know_segment_uris: set[str],
-    ) -> None:
-        """
-        NDGR Segment API から ChunkedMessage を受信する
-
-        Args:
-            segment (chat.MessageSegment): NDGR Segment API の URI
-            callback (Callable[[NDGRComment], Awaitable[None]]): NDGR Segment API から受信した ChunkedMessage を処理するコールバック関数
-            already_know_segment_uris (set[str]): 既知の NDGR Segment API の URI を格納する集合
-        """
-
-        # 既に受信済みの NDGR Segment API の URI は再度受信しない
-        if segment.uri in already_know_segment_uris:
-            return
-        already_know_segment_uris.add(segment.uri)
-
-        # Prefetch タスクをキューに追加
-        prefetch_time = (datetime.now() + timedelta(seconds=1)).timestamp()
-        await self.prefetch_queue.put((prefetch_time, segment.uri))
-
-        # NDGR Segment API から ChunkedMessage を受信する
-        async for chunked_message in self.readProtobufStream(segment.uri, chat.ChunkedMessage):
-
-            # meta または message が存在しない場合は空の ChunkedMessage なので無視する
-            if not chunked_message.HasField('meta') or not chunked_message.HasField('message'):
-                continue
-            # NicoLiveMessage の中に chat がない場合は運営コメントや市場などコメント以外のメッセージなので無視する
-            if not chunked_message.message.HasField('chat'):
-                continue
-            # Chat の中に Modifier がない場合 (存在するのか？) はコメントの位置や色などの情報が取れないのでとりあえず無視する
-            if not chunked_message.message.chat.HasField('modifier'):
-                continue
-
-            # 取り回しやすいように NDGRComment Pydantic モデルに変換した上で、コールバック関数に渡す
-            comment = self.convertToNDGRComment(chunked_message)
-            if self.show_log:
-                print(str(comment))
-                print(Rule(characters='-', style=Style(color='#E33157')))
-
-            # 非同期コールバック関数を実行
-            await callback(comment)
-
-
-    async def prefetchSegments(self):
         while True:
-            prefetch_time, segment_uri = await self.prefetch_queue.get()
-            current_time = datetime.now().timestamp()
-            if current_time < prefetch_time:
-                await asyncio.sleep(prefetch_time - current_time)
-            async for _ in self.readProtobufStream(segment_uri, chat.ChunkedMessage):
-                pass
+            # 状態次第で NDGR View API の ?at= に渡すタイムスタンプを決定する
+            at: str | None = None
+            if ready_for_next is not None:
+                at = str(ready_for_next.at)
+            elif is_first_time:
+                at = 'now'
+                is_first_time = False
+
+            ready_for_next = None
+
+            retry_count = 0
+            while retry_count < 3:
+                try:
+                    async for chunked_entry in self.fetchChunkedEntries(view_api_uri, at):
+
+                        # NDGR Segment API への接続情報を取得
+                        if chunked_entry.HasField('segment'):
+
+                            # Segment の開始時刻と終了時刻の UNIX タイムスタンプを取得
+                            segment = chunked_entry.segment
+                            segment_from = segment.from_.seconds + segment.from_.nanos / 1e9
+                            segment_until = segment.until.seconds + segment.until.nanos / 1e9
+                            print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] '
+                                  f'Segment From: {datetime.fromtimestamp(segment_from).strftime("%H:%M:%S")} / '
+                                  f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}')
+                            print(Rule(characters='-', style=Style(color='#E33157')))
+
+                            # NDGR Segment API から 16 秒間メッセージをリアルタイムストリーミングし、随時ジェネレータに返す
+                            async for comment in self.fetchChunkedMessages(segment.uri):
+                                if comment.id not in known_message_ids:
+                                    known_message_ids.add(comment.id)
+                                    yield comment
+
+                        # 次回の NDGR View API アクセス用タイムスタンプを取得
+                        elif chunked_entry.HasField('next'):
+                            ready_for_next = chunked_entry.next
+
+                    break  # 成功したらループを抜ける
+
+                except Exception:
+                    if self.show_log:
+                        print(f'Error during fetch:')
+                        print(traceback.format_exc())
+                        print(Rule(characters='-', style=Style(color='#E33157')))
+                    retry_count += 1
+                    if retry_count >= 3:
+                        raise  # 3回リトライしても失敗したら例外を投げる
+                    await asyncio.sleep(1)  # 1秒待ってリトライ
+
+            if ready_for_next is None:
+                # next が設定されていない場合は放送が終了したとみなす
+                break
 
 
     async def downloadBackwardComments(self) -> list[NDGRComment]:
@@ -286,7 +233,7 @@ class NDGRClient:
                 """
 
                 nonlocal ready_for_next, backward_api_uri
-                async for chunked_entry in self.readProtobufStream(f'{view_api_uri}?at={at}', chat.ChunkedEntry):
+                async for chunked_entry in self.fetchProtobufStream(f'{view_api_uri}?at={at}', chat.ChunkedEntry):
 
                     # next フィールドがが設定されているとき、NDGR View API への次回アクセス時に ?at= に指定するタイムスタンプ
                     # (が格納された ChunkedEntry.ReadyForNext) を更新する
@@ -471,18 +418,57 @@ class NDGRClient:
                     view_uri = data['data']['viewUri']
                     if self.show_log:
                         print(f'NDGR View API URI: {view_uri}')
+                        print(Rule(characters='-', style=Style(color='#E33157')))
 
                     # WebSocket接続を閉じて NDGR View API の URI を返す
                     await websocket.close()
                     return view_uri
 
 
+    async def fetchChunkedEntries(self, view_api_uri: str, at: str | None) -> AsyncGenerator[chat.ChunkedEntry, None]:
+        """
+        NDGR View API から ChunkedEntry を受信する
+
+        Args:
+            view_api_uri (str): NDGR View API の URI
+            at (str | None): NDGR View API へのアクセス時に ?at= に指定するタイムスタンプ
+
+        Yields:
+            chunked_entry (chat.ChunkedEntry): NDGR View API から受信した ChunkedEntry
+        """
+
+        url = f'{view_api_uri}?at={at}' if at else view_api_uri
+        async for chunked_entry in self.fetchProtobufStream(url, chat.ChunkedEntry):
+            yield chunked_entry
+
+
+    async def fetchChunkedMessages(self, segment_uri: str) -> AsyncGenerator[NDGRComment, None]:
+        """
+        NDGR Segment API から ChunkedMessage を取得し、NDGRComment に変換して返す
+        NDGRComment に変換できない ChunkedMessage は無視される
+
+        Args:
+            segment_uri (str): NDGR Segment API の URI
+
+        Yields:
+            NDGRComment: 変換された NDGRComment
+        """
+
+        async for chunked_message in self.fetchProtobufStream(segment_uri, chat.ChunkedMessage):
+            # meta または message が存在しない場合は空の ChunkedMessage なので無視する
+            if not chunked_message.HasField('meta') or not chunked_message.HasField('message'):
+                continue
+            # NicoLiveMessage の中に chat がない場合は運営コメントや市場などコメント以外のメッセージなので無視する
+            if not chunked_message.message.HasField('chat'):
+                continue
+            # Chat の中に Modifier がない場合 (存在するのか？) はコメントの位置や色などの情報が取れないのでとりあえず無視する
+            if not chunked_message.message.chat.HasField('modifier'):
+                continue
+            yield self.convertToNDGRComment(chunked_message)
+
+
     ProtobufType = TypeVar('ProtobufType', chat.ChunkedEntry, chat.ChunkedMessage, chat.PackedSegment)
-    async def readProtobufStream(
-        self,
-        uri: str,
-        protobuf_class: Type[ProtobufType],
-    ) -> AsyncGenerator[ProtobufType, None]:
+    async def fetchProtobufStream(self, uri: str, protobuf_class: Type[ProtobufType]) -> AsyncGenerator[ProtobufType, None]:
         """
         Protobuf ストリームを読み込み、読み取った Protobuf チャンクをジェネレーターで返す
         Protobuf ストリームを最後まで読み切ったら None を返す
@@ -497,7 +483,15 @@ class NDGRClient:
         """
 
         if self.show_log:
-            print(f'Reading {uri} ...')
+            api_name = ''
+            if '/view/' in uri:
+                api_name = 'NDGR View API'
+            elif '/segment/' in uri:
+                api_name = 'NDGR Segment API'
+            elif '/backward/' in uri:
+                api_name = 'NDGR Backward API'
+            print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Fetching {api_name} ...')
+            print(uri)
             print(Rule(characters='-', style=Style(color='#E33157')))
 
         max_retries = 5  # 5回までリトライ

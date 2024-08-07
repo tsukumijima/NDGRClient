@@ -83,7 +83,8 @@ message ChunkedEntry {
 
 message MessageSegment {
   
-  google.protobuf.Timestamp from = 1;
+  // Python では from が予約されているため from_ として命名している
+  google.protobuf.Timestamp from_ = 1;
 
   
   google.protobuf.Timestamp until = 2;

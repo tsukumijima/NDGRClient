@@ -553,7 +553,7 @@ class NDGRClient:
             XMLCompatibleComment: XMLCompatibleComment
         """
 
-        # コマンド文字列を生成
+        # "mail" フィールドに入るコメントコマンドを生成
         command = []
         # raw_user_id が 0 の場合はユーザー ID が匿名化されているため、"184" コマンドを付与する
         if comment.raw_user_id == 0:
@@ -568,6 +568,10 @@ class NDGRClient:
             command.append(f'#{comment.color.r:02x}{comment.color.g:02x}{comment.color.b:02x}')
         if comment.font != 'defont':
             command.append(comment.font)
+        # コメントの不透明度を表すコメントコマンドは従来存在しないが、
+        ## コメントの装飾情報は原則保存しておきたいので、特別に opacity が "Translucent" の場合のみ "translucent" コマンドを付与する
+        if comment.opacity == 'Translucent':
+            command.append('translucent')
 
         # raw_user_id が 0 より上だったら生のユーザー ID を採用し、なければ hashed_user_id (匿名化されたユーザー ID) を採用
         ## ユーザー ID にはニコニコ生放送からのコメントだと識別できる "nicolive:" の prefix を付与

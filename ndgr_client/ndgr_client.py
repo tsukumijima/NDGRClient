@@ -737,11 +737,10 @@ class NDGRClient:
             command.append('translucent')
 
         # raw_user_id が 0 より上だったら生のユーザー ID を採用し、なければ hashed_user_id (匿名化されたユーザー ID) を採用
-        ## ユーザー ID にはニコニコ生放送からのコメントだと識別できる "nicolive:" の prefix を付与
         if comment.raw_user_id > 0:
-            user_id = f'nicolive:{comment.raw_user_id}'
+            user_id = str(comment.raw_user_id)
         else:
-            user_id = f'nicolive:{comment.hashed_user_id}'
+            user_id = str(comment.hashed_user_id)
 
         # XMLCompatibleComment オブジェクトを生成
         xml_compatible_comment = XMLCompatibleComment(

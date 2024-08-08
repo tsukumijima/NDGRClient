@@ -416,9 +416,6 @@ class NDGRClient:
 
                     # NDGR View API の URI を取得
                     view_uri = data['data']['viewUri']
-                    if self.show_log:
-                        print(f'NDGR View API URI: {view_uri}')
-                        print(Rule(characters='-', style=Style(color='#E33157')))
 
                     # WebSocket接続を閉じて NDGR View API の URI を返す
                     await websocket.close()

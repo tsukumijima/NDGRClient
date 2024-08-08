@@ -189,53 +189,6 @@ class NDGRClient:
             ValueError: 既に放送を終了した番組に対してストリーミングを開始しようとした場合
         """
 
-        async def fetch_program_info() -> Literal['RESTART', 'ENDED']:
-            """
-            毎分 05 秒に視聴ページから NicoLiveProgramInfo を取得し、状態を監視する
-            この関数は番組の放送が終了するか、後続の番組に切り替えてコメント受信処理を再開する必要が出るまで終了しない
-
-            Returns:
-                Literal['ENDED']: 番組の放送が終了した (後続の番組もない) 場合は 'ENDED' を返す
-                Literal['RESTART']: 後続の番組に切り替えてコメント受信処理を再開するために 'RESTART' を返す
-            """
-
-            # 毎分 05 秒に実行
-            ## 00 秒ちょうどにアクセスするとギリギリ変更反映前のデータを取得してしまう可能性があるため、敢えて 5 秒待っている
-            while True:
-                await asyncio.sleep(60 - datetime.now().second % 60 + 5)
-                try:
-                    # 視聴ページから self.nicolive_program_id に対応する現在の番組ステータスを取得する
-                    new_program_info = await self.parseWatchPage()
-
-                    # 受信中番組がニコニコ実況番組ではなく、かつ番組の放送が終了した
-                    if self.jikkyo_id is None and new_program_info.status == 'ENDED':
-                        return 'ENDED'  # 終了信号を返す
-
-                    # 受信中番組がニコニコ実況番組のときのみ
-                    elif self.jikkyo_id is not None:
-
-                        # 番組の放送が終了した場合、ニコニコ実況チャンネル ID とニコニコ生放送番組 ID のマッピングを更新し、
-                        # 後続のニコニコ実況番組に切り替えてコメント受信処理を再開する
-                        ## 08/22 まで公式生放送で運用されている暫定ニコニコ実況向けの処理
-                        if new_program_info.status == 'ENDED':
-                            await NDGRClient.updateJikkyoChannelIDMap()
-                            self.nicolive_program_id = NDGRClient.JIKKYO_CHANNEL_ID_MAP[self.jikkyo_id]
-                            return 'RESTART'  # 再起動信号を返す
-
-                        # 同一ニコニコチャンネルで連続して配信されているものの、ニコニコ生放送番組 ID が変更された場合は、
-                        # 後続のニコニコ実況番組に切り替えてコメント受信処理を再開する
-                        ## ニコニコ実況の毎日 04:00 での番組リセット向けの処理
-                        elif new_program_info.nicoliveProgramId != self.nicolive_program_id:
-                            return 'RESTART'  # 再起動信号を返す
-
-                except KeyboardInterrupt:
-                    raise
-                except Exception:
-                    if self.show_log:
-                        print('Error fetching program info:')
-                        print(traceback.format_exc())
-                        print(Rule(characters='-', style=Style(color='#E33157')))
-
         async def stream_comments_inner() -> AsyncGenerator[NDGRComment | Literal['ENDED', 'RESTART'], None]:
             """
             NDGR View API から ChunkedEntry をリアルタイムストリーミングし、NDGR Segment API への接続情報を取得して ChunkedMessage 受信タスクを開始する
@@ -265,6 +218,53 @@ class NDGRClient:
             comment_queue: asyncio.Queue[NDGRComment] = asyncio.Queue()
             # アクティブな ChunkedMessage 受信タスクを格納する辞書
             active_segments: dict[str, asyncio.Task[None]] = {}
+
+            async def fetch_program_info() -> Literal['RESTART', 'ENDED']:
+                """
+                毎分 05 秒に視聴ページから NicoLiveProgramInfo を取得し、状態を監視する
+                この関数は番組の放送が終了するか、後続の番組に切り替えてコメント受信処理を再開する必要が出るまで終了しない
+
+                Returns:
+                    Literal['ENDED']: 番組の放送が終了した (後続の番組もない) 場合は 'ENDED' を返す
+                    Literal['RESTART']: 後続の番組に切り替えてコメント受信処理を再開するために 'RESTART' を返す
+                """
+
+                # 毎分 05 秒に実行
+                ## 00 秒ちょうどにアクセスするとギリギリ変更反映前のデータを取得してしまう可能性があるため、敢えて 5 秒待っている
+                while True:
+                    await asyncio.sleep(60 - datetime.now().second % 60 + 5)
+                    try:
+                        # 視聴ページから self.nicolive_program_id に対応する現在の番組ステータスを取得する
+                        new_program_info = await self.parseWatchPage()
+
+                        # 受信中番組がニコニコ実況番組ではなく、かつ番組の放送が終了した
+                        if self.jikkyo_id is None and new_program_info.status == 'ENDED':
+                            return 'ENDED'  # 終了信号を返す
+
+                        # 受信中番組がニコニコ実況番組のときのみ
+                        elif self.jikkyo_id is not None:
+
+                            # 番組の放送が終了した場合、ニコニコ実況チャンネル ID とニコニコ生放送番組 ID のマッピングを更新し、
+                            # 後続のニコニコ実況番組に切り替えてコメント受信処理を再開する
+                            ## 08/22 まで公式生放送で運用されている暫定ニコニコ実況向けの処理
+                            if new_program_info.status == 'ENDED':
+                                await NDGRClient.updateJikkyoChannelIDMap()
+                                self.nicolive_program_id = NDGRClient.JIKKYO_CHANNEL_ID_MAP[self.jikkyo_id]
+                                return 'RESTART'  # 再起動信号を返す
+
+                            # 同一ニコニコチャンネルで連続して配信されているものの、ニコニコ生放送番組 ID が変更された場合は、
+                            # 後続のニコニコ実況番組に切り替えてコメント受信処理を再開する
+                            ## ニコニコ実況の毎日 04:00 での番組リセット向けの処理
+                            elif new_program_info.nicoliveProgramId != self.nicolive_program_id:
+                                return 'RESTART'  # 再起動信号を返す
+
+                    except KeyboardInterrupt:
+                        raise
+                    except Exception:
+                        if self.show_log:
+                            print('Error fetching program info:')
+                            print(traceback.format_exc())
+                            print(Rule(characters='-', style=Style(color='#E33157')))
 
             async def fetch_chunked_entries() -> None:
                 """
@@ -341,6 +341,7 @@ class NDGRClient:
                 """
                 NDGR Segment API から 16 秒間 ChunkedMessage (から変換された NDGRComment) をリアルタイムストリーミングし、
                 受信次第 stream_comments_inner() で yield するための Queue に格納する
+                この関数は fetch_chunked_entries() からバックグラウンド実行される
                 """
 
                 try:
@@ -358,8 +359,8 @@ class NDGRClient:
                     active_segments.pop(segment.uri, None)
 
             # ChunkedEntry 受信タスクを開始
-            chunked_entries_task = asyncio.create_task(fetch_chunked_entries())
             program_info_task = asyncio.create_task(fetch_program_info())
+            chunked_entries_task = asyncio.create_task(fetch_chunked_entries())
 
             try:
                 while True:
@@ -408,9 +409,9 @@ class NDGRClient:
                 # comment が 'ENDED' のときはこのメソッドでの処理を終了
                 if comment == 'ENDED':
                     return
-                # comment が 'RESTART' のときは次のループに入り、新たに stream_comments_inner() を呼び出す
+                # comment が 'RESTART' のときは一度ジェネレータを中断し、新たに stream_comments_inner() を呼び出す
                 elif comment == 'RESTART':
-                    continue
+                    break  # ここで break すると外側の while True: ループに戻る
                 # comment が NDGRComment のときは yield する
                 else:
                     yield comment

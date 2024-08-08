@@ -126,60 +126,95 @@ class NDGRClient:
         # 既知のメッセージ ID を格納する集合
         known_message_ids: set[str] = set()
 
-        while True:
-            # 状態次第で NDGR View API の ?at= に渡すタイムスタンプを決定する
-            at: str | None = None
-            if ready_for_next is not None:
-                at = str(ready_for_next.at)
-            elif is_first_time:
-                at = 'now'
-                is_first_time = False
+        comment_queue = asyncio.Queue()
+        active_segments: dict[str, asyncio.Task[None]] = {}
 
-            ready_for_next = None
+        async def process_chunked_entries() -> None:
+            nonlocal ready_for_next, is_first_time
+            while True:
+                # 状態次第で NDGR View API の ?at= に渡すタイムスタンプを決定する
+                at: str | None = None
+                if ready_for_next is not None:
+                    at = str(ready_for_next.at)
+                elif is_first_time:
+                    at = 'now'
+                    is_first_time = False
 
-            retry_count = 0
-            while retry_count < 3:
-                try:
-                    async for chunked_entry in self.fetchChunkedEntries(view_api_uri, at):
+                ready_for_next = None
 
-                        # NDGR Segment API への接続情報を取得
-                        if chunked_entry.HasField('segment'):
+                retry_count = 0
+                while retry_count < 3:
+                    try:
+                        async for chunked_entry in self.fetchChunkedEntries(view_api_uri, at):
 
-                            # Segment の開始時刻と終了時刻の UNIX タイムスタンプを取得
-                            segment = chunked_entry.segment
-                            segment_from = segment.from_.seconds + segment.from_.nanos / 1e9
-                            segment_until = segment.until.seconds + segment.until.nanos / 1e9
-                            print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] '
-                                  f'Segment From: {datetime.fromtimestamp(segment_from).strftime("%H:%M:%S")} / '
-                                  f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}')
+                            # NDGR Segment API への接続情報を取得
+                            if chunked_entry.HasField('segment'):
+
+                                # Segment の開始時刻と終了時刻の UNIX タイムスタンプを取得
+                                segment = chunked_entry.segment
+                                segment_from = segment.from_.seconds + segment.from_.nanos / 1e9
+                                segment_until = segment.until.seconds + segment.until.nanos / 1e9
+                                if self.show_log:
+                                    print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] '
+                                          f'Segment From: {datetime.fromtimestamp(segment_from).strftime("%H:%M:%S")} / '
+                                          f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}')
+                                    print(Rule(characters='-', style=Style(color='#E33157')))
+
+                                # 新しいセグメントの処理タスクを作成し、開始
+                                task = asyncio.create_task(process_segment(segment))
+                                active_segments[segment.uri] = task
+
+                            # 次回の NDGR View API アクセス用タイムスタンプを取得
+                            elif chunked_entry.HasField('next'):
+                                ready_for_next = chunked_entry.next
+
+                        break  # 成功したらループを抜ける
+
+                    except Exception:
+                        if self.show_log:
+                            print(f'Error during fetch:')
+                            print(traceback.format_exc())
                             print(Rule(characters='-', style=Style(color='#E33157')))
+                        retry_count += 1
+                        if retry_count >= 3:
+                            raise  # 3回リトライしても失敗したら例外を投げる
+                        await asyncio.sleep(1)  # 1秒待ってリトライ
 
-                            # NDGR Segment API から 16 秒間メッセージをリアルタイムストリーミングし、受信次第返す
-                            ## TODO: ここで次の ChunkedEntry が来るまで待機しないようにしたい
-                            async for comment in self.fetchChunkedMessages(segment.uri):
-                                if comment.id not in known_message_ids:
-                                    known_message_ids.add(comment.id)
-                                    yield comment
+                if ready_for_next is None:
+                    # next が設定されていない場合は放送が終了したとみなす
+                    break
 
-                        # 次回の NDGR View API アクセス用タイムスタンプを取得
-                        elif chunked_entry.HasField('next'):
-                            ready_for_next = chunked_entry.next
+        async def process_segment(segment: chat.MessageSegment) -> None:
+            try:
+                # NDGR Segment API から 16 秒間メッセージをリアルタイムストリーミングし、受信次第返す
+                async for comment in self.fetchChunkedMessages(segment.uri):
+                    await comment_queue.put(comment)
+            except Exception:
+                if self.show_log:
+                    print(f'Error processing segment:')
+                    print(traceback.format_exc())
+                    print(Rule(characters='-', style=Style(color='#E33157')))
+            finally:
+                # セグメント処理が完了したらアクティブリストから削除
+                active_segments.pop(segment.uri, None)
 
-                    break  # 成功したらループを抜ける
+        # ChunkedEntry の処理タスクを開始
+        chunked_entries_task = asyncio.create_task(process_chunked_entries())
 
-                except Exception:
-                    if self.show_log:
-                        print(f'Error during fetch:')
-                        print(traceback.format_exc())
-                        print(Rule(characters='-', style=Style(color='#E33157')))
-                    retry_count += 1
-                    if retry_count >= 3:
-                        raise  # 3回リトライしても失敗したら例外を投げる
-                    await asyncio.sleep(1)  # 1秒待ってリトライ
-
-            if ready_for_next is None:
-                # next が設定されていない場合は放送が終了したとみなす
-                break
+        try:
+            while True:
+                comment = await comment_queue.get()
+                if comment.id not in known_message_ids:
+                    known_message_ids.add(comment.id)
+                    yield comment
+                comment_queue.task_done()
+        finally:
+            # すべてのアクティブなセグメント処理タスクをキャンセル
+            for task in active_segments.values():
+                task.cancel()
+            chunked_entries_task.cancel()
+            # タスクが完全に終了するのを待つ
+            await asyncio.gather(chunked_entries_task, *active_segments.values(), return_exceptions=True)
 
 
     async def downloadBackwardComments(self) -> list[NDGRComment]:
@@ -480,12 +515,12 @@ class NDGRClient:
             ProtobufType: Protobuf チャンク (protobuf_class で指定した型)
         """
 
+        api_name = ''
+        if '/view/' in uri:
+            api_name = 'NDGR View API'
+        elif '/segment/' in uri:
+            api_name = 'NDGR Segment API'
         if self.show_log:
-            api_name = ''
-            if '/view/' in uri:
-                api_name = 'NDGR View API'
-            elif '/segment/' in uri:
-                api_name = 'NDGR Segment API'
             print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Fetching {api_name} ...')
             print(uri)
             print(Rule(characters='-', style=Style(color='#E33157')))
@@ -516,6 +551,10 @@ class NDGRClient:
                             yield protobuf
 
                 # Protobuf ストリームを最後まで読み切ったら、ループを抜ける
+                if self.show_log:
+                    print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Fetched {api_name}.')
+                    print(uri)
+                    print(Rule(characters='-', style=Style(color='#E33157')))
                 break
 
             # HTTP 接続エラー発生時、しばらく待ってからリトライを試みる

@@ -3,7 +3,7 @@
 
 **NDGRClient**: Nicolive NDGR Message Server Client Library & Command Line Tool
 
-![Screenshot](https://github.com/user-attachments/assets/16b092dd-419a-421a-8eae-46a20b106298)
+![Screenshot](https://github.com/user-attachments/assets/d0d8765d-3f77-4bf2-a149-b979979e1104)
 
 ## About
 
@@ -37,9 +37,9 @@ AWS 上で稼働していること、またこのような高度な仕組みは�
 
 ## Usage
 
-### Streaming
+### Streaming comments
 
-![Screenshot](https://github.com/user-attachments/assets/16b092dd-419a-421a-8eae-46a20b106298)
+![Screenshot](https://github.com/user-attachments/assets/d0d8765d-3f77-4bf2-a149-b979979e1104)
 
 ```bash
 poetry run python -m ndgr_client stream <nicolive_program_id or jikkyo_id>
@@ -49,7 +49,7 @@ poetry run python -m ndgr_client stream <nicolive_program_id or jikkyo_id>
 
 ### Download Kakolog
 
-![Screenshot](https://github.com/user-attachments/assets/31c4ccc5-feb8-47cd-8665-451a180f471a)
+![Screenshot](https://github.com/user-attachments/assets/8d354d3a-8b24-4c0d-ad6d-db83a0e7695a)
 
 ```bash
 poetry run python -m ndgr_client download <nicolive_program_id or jikkyo_id> --output-dir <output_dir>

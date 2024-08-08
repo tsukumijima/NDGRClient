@@ -186,6 +186,7 @@ class NDGRClient:
         Raises:
             httpx.HTTPStatusError: HTTP リクエストが失敗した場合
             AssertionError: 解析に失敗した場合
+            ValueError: 既に放送を終了した番組に対してストリーミングを開始しようとした場合
         """
 
         async def fetch_program_info() -> Literal['RESTART', 'ENDED']:
@@ -243,6 +244,10 @@ class NDGRClient:
 
             # 視聴ページから NDGR View API の URI を取得する
             nicolive_program_info = await self.parseWatchPage()
+            if nicolive_program_info.status == 'ENDED':
+                # すでに放送を終了した番組はストリーミングを開始できない
+                ## 厳密には NDGR の各 API に接続することはできるが、当然新規にコメントが降ってくることはなく、過去ログ参照のみ
+                raise ValueError(f'Program {self.nicolive_program_id} has already ended and cannot be streamed.')
             if self.show_log:
                 print(f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})')
                 print(f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '

@@ -60,6 +60,8 @@ class NDGRClient:
     def __init__(self, nicolive_program_id: str, show_log: bool = False) -> None:
         """
         NDGRClient のコンストラクタ
+        nicolive_program_id にニコニコ実況のチャンネル ID を渡したときは、
+        当該ニコニコ実況チャンネルで現在放送中のニコニコ生放送番組 (実況枠) に対して処理を行う
 
         Args:
             nicolive_program_id (str): ニコニコ生放送の番組 ID (ex: lv345479988) or ニコニコ実況のチャンネル ID (ex: jk1, jk211)
@@ -68,6 +70,8 @@ class NDGRClient:
 
         if nicolive_program_id.startswith('jk'):
             # nicolive_program_id が jk から始まる場合、ニコニコ実況 ID として扱う
+            ## ニコニコチャンネル ID とニコニコ生放送番組 ID は異なる概念だが、ニコニコ生放送では /watch/(ニコニコチャンネル ID) の URL で
+            ## 当該チャンネルで現在放送中の番組にアクセスできる仕様があるので、それを使っている
             if nicolive_program_id not in self.JIKKYO_CHANNEL_ID_MAP:
                 raise ValueError(f'Invalid jikkyo_id: {nicolive_program_id}')
             self.nicolive_program_id = self.JIKKYO_CHANNEL_ID_MAP[nicolive_program_id]
@@ -452,6 +456,7 @@ class NDGRClient:
         assert 'relive' in embedded_data['site']
 
         program_info = NicoLiveProgramInfo(
+            nicoliveProgramId = embedded_data['program']['nicoliveProgramId'],
             title = embedded_data['program']['title'],
             description = embedded_data['program']['description'],
             status = embedded_data['program']['status'],
@@ -463,7 +468,7 @@ class NDGRClient:
             webSocketUrl = embedded_data['site']['relive']['webSocketUrl'],
         )
         if self.show_log:
-            print(f'Title:  {program_info.title} [{program_info.status}]')
+            print(f'Title:  {program_info.title} [{program_info.status}] ({program_info.nicoliveProgramId})')
             print(f'Period: {datetime.fromtimestamp(program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
               f'{datetime.fromtimestamp(program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
               f'({datetime.fromtimestamp(program_info.endTime) - datetime.fromtimestamp(program_info.openTime)}h)')

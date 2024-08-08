@@ -10,6 +10,8 @@ class NicoLiveProgramInfo(BaseModel):
     ニコニコ生放送の視聴ページから取得した embedded-data のうち、有用そうな情報
     フィールド名は embedded-data 内の各値のキー名と同一 (そのため敢えて camelCase のままにしている)
     """
+    # 生放送の番組 ID (ex: lv345479473)
+    nicoliveProgramId: str
     # 生放送の番組タイトル
     title: str
     # 生放送の番組概要

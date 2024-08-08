@@ -108,6 +108,7 @@ class NDGRClient:
         """
         https://originalnews.nico/464285 から最新の実況チャンネル ID とニコニコチャンネル ID のマッピングを取得し、
         クラス変数 JIKKYO_CHANNEL_ID_MAP に格納する
+        ニコニコ実況がニコニコチャンネルで本復旧するまでの暫定措置で、NDGRClient の初期化前に実行する必要がある
         """
 
         url = 'https://originalnews.nico/464285'
@@ -176,8 +177,8 @@ class NDGRClient:
         """
 
         # 視聴ページから NDGR View API の URI を取得する
-        embedded_data = await self.parseWatchPage()
-        view_api_uri = await self.fetchNDGRViewURI(embedded_data.webSocketUrl)
+        nicolive_program_info = await self.parseWatchPage()
+        view_api_uri = await self.fetchNDGRViewURI(nicolive_program_info.webSocketUrl)
 
         # NDGR View API への初回アクセスかどうかを表すフラグ
         is_first_time: bool = True
@@ -189,7 +190,27 @@ class NDGRClient:
         comment_queue = asyncio.Queue()
         active_segments: dict[str, asyncio.Task[None]] = {}
 
+        async def process_segment(segment: chat.MessageSegment) -> None:
+            """
+            NDGR Segment API から 16 秒間メッセージをリアルタイムストリーミングし、受信次第 Queue に格納する
+            """
+            try:
+                async for comment in self.fetchChunkedMessages(segment.uri):
+                    await comment_queue.put(comment)
+            except Exception:
+                if self.show_log:
+                    print(f'Error processing segment:')
+                    print(traceback.format_exc())
+                    print(Rule(characters='-', style=Style(color='#E33157')))
+            finally:
+                # セグメント受信が完了したらアクティブリストから削除
+                active_segments.pop(segment.uri, None)
+
         async def process_chunked_entries() -> None:
+            """
+            NDGR View API から ChunkedEntry をリアルタイムストリーミングし、
+            NDGR Segment API への接続情報を取得してセグメント受信タスクを開始する
+            """
             nonlocal ready_for_next, is_first_time
             while True:
                 # 状態次第で NDGR View API の ?at= に渡すタイムスタンプを決定する
@@ -208,9 +229,13 @@ class NDGRClient:
                         async for chunked_entry in self.fetchChunkedEntries(view_api_uri, at):
 
                             # NDGR Segment API への接続情報を取得
+                            ## 現在、現在受信中のセグメントの配信終了時刻の 6 秒前に次のセグメントへの接続情報が配信される仕様になっている
+                            ## 次のセグメントへの接続情報を受信次第、即座にセグメント受信タスクを開始する
+                            ## こうすることで、前のセグメントの配信が終了してから次のセグメントの配信開始後に受信するまでの時間的ギャップを回避できる
                             if chunked_entry.HasField('segment'):
 
-                                # Segment の開始時刻と終了時刻の UNIX タイムスタンプを取得
+                                # セグメントの配信開始時刻と配信終了時刻の UNIX タイムスタンプを取得
+                                ## セグメントには配信開始時刻より前から接続できる
                                 segment = chunked_entry.segment
                                 segment_from = segment.from_.seconds + segment.from_.nanos / 1e9
                                 segment_until = segment.until.seconds + segment.until.nanos / 1e9
@@ -220,7 +245,7 @@ class NDGRClient:
                                           f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}')
                                     print(Rule(characters='-', style=Style(color='#E33157')))
 
-                                # 新しいセグメントの処理タスクを作成し、開始
+                                # 新しいセグメント受信タスクを作成し、開始
                                 task = asyncio.create_task(process_segment(segment))
                                 active_segments[segment.uri] = task
 
@@ -243,20 +268,6 @@ class NDGRClient:
                 if ready_for_next is None:
                     # next が設定されていない場合は放送が終了したとみなす
                     break
-
-        async def process_segment(segment: chat.MessageSegment) -> None:
-            try:
-                # NDGR Segment API から 16 秒間メッセージをリアルタイムストリーミングし、受信次第返す
-                async for comment in self.fetchChunkedMessages(segment.uri):
-                    await comment_queue.put(comment)
-            except Exception:
-                if self.show_log:
-                    print(f'Error processing segment:')
-                    print(traceback.format_exc())
-                    print(Rule(characters='-', style=Style(color='#E33157')))
-            finally:
-                # セグメント処理が完了したらアクティブリストから削除
-                active_segments.pop(segment.uri, None)
 
         # ChunkedEntry の処理タスクを開始
         chunked_entries_task = asyncio.create_task(process_chunked_entries())
@@ -290,8 +301,8 @@ class NDGRClient:
         """
 
         # 視聴ページから NDGR View API の URI を取得する
-        embedded_data = await self.parseWatchPage()
-        view_api_uri = await self.fetchNDGRViewURI(embedded_data.webSocketUrl)
+        nicolive_program_info = await self.parseWatchPage()
+        view_api_uri = await self.fetchNDGRViewURI(nicolive_program_info.webSocketUrl)
 
         # NDGR View API への初回アクセスかどうかを表すフラグ
         is_first_time: bool = True

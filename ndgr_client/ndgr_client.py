@@ -112,12 +112,19 @@ class NDGRClient:
         """
         https://originalnews.nico/464285 から最新の実況チャンネル ID とニコニコチャンネル ID のマッピングを取得し、
         クラス変数 JIKKYO_CHANNEL_ID_MAP に格納する
-        ニコニコ実況がニコニコチャンネルで本復旧するまでの暫定措置で、NDGRClient の初期化前に実行する必要がある
+        ニコニコ実況がチャンネル生放送で本復旧するまでの暫定的な実装で (本復旧後に除去予定) 、NDGRClient の初期化前に実行する必要がある
         """
 
-        url = 'https://originalnews.nico/464285'
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url)
+        # クラスメソッドから self.httpx_client にはアクセスできないため、新しい httpx.AsyncClient を作成している
+        async with httpx.AsyncClient(headers={'user-agent': cls.USER_AGENT}) as client:
+
+            # スクレイピングを開始する前に https://jk.nicovideo.jp/ にリクエストしてのステータスコードを確認
+            ## 暫定措置中は 302 リダイレクトが行われているので、302 リダイレクトが行われなくなっていたら本復旧したと判断して以降の処理を行わない
+            response = await client.get('https://jk.nicovideo.jp/', follow_redirects=False)
+            if response.status_code != 302:
+                return  # 以降は何もしない
+
+            response = await client.get('https://originalnews.nico/464285')
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'html.parser')
 

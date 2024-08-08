@@ -117,7 +117,7 @@ class NDGRClient:
 
         # 視聴ページから NDGR View API の URI を取得する
         embedded_data = await self.parseWatchPage()
-        view_api_uri = await self.getNDGRViewAPIUri(embedded_data.webSocketUrl)
+        view_api_uri = await self.fetchNDGRViewURI(embedded_data.webSocketUrl)
 
         # NDGR View API への初回アクセスかどうかを表すフラグ
         is_first_time: bool = True
@@ -196,7 +196,7 @@ class NDGRClient:
 
         # 視聴ページから NDGR View API の URI を取得する
         embedded_data = await self.parseWatchPage()
-        view_api_uri = await self.getNDGRViewAPIUri(embedded_data.webSocketUrl)
+        view_api_uri = await self.fetchNDGRViewURI(embedded_data.webSocketUrl)
 
         # NDGR View API への初回アクセスかどうかを表すフラグ
         is_first_time: bool = True
@@ -367,7 +367,7 @@ class NDGRClient:
         return program_info
 
 
-    async def getNDGRViewAPIUri(self, webSocketUrl: str) -> str:
+    async def fetchNDGRViewURI(self, webSocketUrl: str) -> str:
         """
         ニコニコ生放送の視聴ページから取得した webSocketUrl に接続し、NDGR View API の URI を取得する
         Protobuf ストリームが返ることからして、NDGR サーバーは大災害前のニコ生の WebSocket API とは仕様が大きく異なる

@@ -65,7 +65,7 @@ class NDGRClient:
 
         Args:
             nicolive_program_id (str): ニコニコ生放送の番組 ID (ex: lv345479988) or ニコニコ実況のチャンネル ID (ex: jk1, jk211)
-            show_log (bool, default=False): グラフィカルなログを出力するかどうか
+            show_log (bool, default=False): グラフィカルな動作ログを出力するかどうか
         """
 
         if nicolive_program_id.startswith('jk'):
@@ -191,12 +191,14 @@ class NDGRClient:
         # 既知のメッセージ ID を格納する集合
         known_message_ids: set[str] = set()
 
+        # process_segment() で受信したコメントを yield で返すための Queue
         comment_queue = asyncio.Queue()
+        # アクティブなセグメント受信タスクを格納する辞書
         active_segments: dict[str, asyncio.Task[None]] = {}
 
         async def process_segment(segment: chat.MessageSegment) -> None:
             """
-            NDGR Segment API から 16 秒間メッセージをリアルタイムストリーミングし、受信次第 Queue に格納する
+            NDGR Segment API から 16 秒間コメントをリアルタイムストリーミングし、受信次第 Queue に格納する
             """
             try:
                 async for comment in self.fetchChunkedMessages(segment.uri):
@@ -207,7 +209,7 @@ class NDGRClient:
                     print(traceback.format_exc())
                     print(Rule(characters='-', style=Style(color='#E33157')))
             finally:
-                # セグメント受信が完了したらアクティブリストから削除
+                # 配信終了時刻を過ぎてセグメント受信が完了したらアクティブリストから削除
                 active_segments.pop(segment.uri, None)
 
         async def process_chunked_entries() -> None:
@@ -217,7 +219,10 @@ class NDGRClient:
             """
             nonlocal ready_for_next, is_first_time
             while True:
+
                 # 状態次第で NDGR View API の ?at= に渡すタイムスタンプを決定する
+                # 初回アクセス時は ?at=now を指定する
+                # 次回アクセス時は ?at= に ChunkedEntry.ReadyForNext.at に設定されている UNIX タイムスタンプを指定する
                 at: str | None = None
                 if ready_for_next is not None:
                     at = str(ready_for_next.at)
@@ -273,18 +278,19 @@ class NDGRClient:
                     # next が設定されていない場合は放送が終了したとみなす
                     break
 
-        # ChunkedEntry の処理タスクを開始
+        # ChunkedEntry 受信タスクを開始
         chunked_entries_task = asyncio.create_task(process_chunked_entries())
 
         try:
             while True:
+                # 非同期で実行中のタスクからコメントを受信し、既に受信したコメントでなければ yield で返す
                 comment = await comment_queue.get()
                 if comment.id not in known_message_ids:
                     known_message_ids.add(comment.id)
                     yield comment
                 comment_queue.task_done()
         finally:
-            # すべてのアクティブなセグメント処理タスクをキャンセル
+            # すべてのアクティブなセグメント受信タスクをキャンセル
             for task in active_segments.values():
                 task.cancel()
             chunked_entries_task.cancel()
@@ -297,7 +303,7 @@ class NDGRClient:
         NDGR サーバーから過去に投稿されたコメントを遡ってダウンロードする
 
         Returns:
-            list[NDGRComment]: 過去に投稿されたコメントのリスト (時系列昇順)
+            list[NDGRComment]: 過去に投稿されたコメントのリスト (投稿日時昇順)
 
         Raises:
             httpx.HTTPStatusError: HTTP リクエストが失敗した場合
@@ -323,7 +329,7 @@ class NDGRClient:
 
             # 状態次第で NDGR View API の ?at= に渡すタイムスタンプを決定する
             # 初回アクセス時は ?at=now を指定する
-            # 次回アクセス時は ?at= に ChunkedEntry.ReadyForNext.at に設定されている Unix タイムスタンプを指定する
+            # 次回アクセス時は ?at= に ChunkedEntry.ReadyForNext.at に設定されている UNIX タイムスタンプを指定する
             at: str | None = None
             if ready_for_next is not None:
                 at = str(ready_for_next.at)
@@ -339,12 +345,12 @@ class NDGRClient:
 
             async def process_chunked_entries():
                 """
-                ChunkedEntry の受信を処理する非同期ジェネレーター関数
+                ChunkedEntry の受信を処理する非同期ジェネレータ関数
                 ChunkedEntry には、NDGR Segment API / NDGR Backward API など複数の API のアクセス先 URI が含まれる
                 """
 
                 nonlocal ready_for_next, backward_api_uri
-                async for chunked_entry in self.fetchProtobufStream(f'{view_api_uri}?at={at}', chat.ChunkedEntry):
+                async for chunked_entry in self.fetchChunkedEntries(view_api_uri, at):
 
                     # next フィールドがが設定されているとき、NDGR View API への次回アクセス時に ?at= に指定するタイムスタンプ
                     # (が格納された ChunkedEntry.ReadyForNext) を更新する
@@ -422,8 +428,8 @@ class NDGRClient:
             else:
                 break
 
-            # 短時間に大量アクセスすると 403 を返されるので、1秒待つ
-            await asyncio.sleep(1.0)
+            # 短時間に大量アクセスすると 403 を返されるので、0.1秒待つ
+            await asyncio.sleep(0.1)
 
         return comments
 
@@ -582,7 +588,7 @@ class NDGRClient:
     ProtobufType = TypeVar('ProtobufType', chat.ChunkedEntry, chat.ChunkedMessage, chat.PackedSegment)
     async def fetchProtobufStream(self, uri: str, protobuf_class: Type[ProtobufType]) -> AsyncGenerator[ProtobufType, None]:
         """
-        Protobuf ストリームを読み込み、読み取った Protobuf チャンクをジェネレーターで返す
+        Protobuf ストリームを読み込み、読み取った Protobuf チャンクをジェネレータで返す
         Protobuf ストリームを最後まで読み切ったら None を返す
         エラー発生時は 5 回までリトライしてから例外を送出する
 
@@ -626,7 +632,7 @@ class NDGRClient:
                             protobuf = protobuf_class()
                             protobuf.ParseFromString(message)
 
-                            # ジェネレーターとして読み取った Protobuf を返す
+                            # ジェネレータとして読み取った Protobuf を返す
                             yield protobuf
 
                 # Protobuf ストリームを最後まで読み切ったら、ループを抜ける

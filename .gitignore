@@ -145,4 +145,6 @@ cython_debug/
 build/
 dist/
 
+.DS_Store
+._*
 *.nicojk

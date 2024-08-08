@@ -154,7 +154,8 @@ class NDGRClient:
                                   f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}')
                             print(Rule(characters='-', style=Style(color='#E33157')))
 
-                            # NDGR Segment API から 16 秒間メッセージをリアルタイムストリーミングし、随時ジェネレータに返す
+                            # NDGR Segment API から 16 秒間メッセージをリアルタイムストリーミングし、受信次第返す
+                            ## TODO: ここで次の ChunkedEntry が来るまで待機しないようにしたい
                             async for comment in self.fetchChunkedMessages(segment.uri):
                                 if comment.id not in known_message_ids:
                                     known_message_ids.add(comment.id)

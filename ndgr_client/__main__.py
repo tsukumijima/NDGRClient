@@ -11,7 +11,7 @@ from ndgr_client.ndgr_client import NDGRClient
 from ndgr_client.utils import AsyncTyper
 
 
-app = AsyncTyper(help='NDGRClient: Nicolive NDGR Server Client Library')
+app = AsyncTyper(help='NDGRClient: Nicolive NDGR Message Server Client Library')
 
 @app.command(help='Stream comments from NDGR server.')
 async def stream(nicolive_program_id: str = typer.Argument(help='Nicolive program ID (ex: jk1, jk9, jk211 / lv345479988)')):

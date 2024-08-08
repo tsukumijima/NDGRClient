@@ -1,7 +1,7 @@
 
 # NDGRClient
 
-**NDGRClient**: Nicolive NDGR Server Client Library & Command Line Tool
+**NDGRClient**: Nicolive NDGR Message Server Client Library & Command Line Tool
 
 ![Screenshot](https://github.com/user-attachments/assets/16b092dd-419a-421a-8eae-46a20b106298)
 

@@ -63,6 +63,14 @@ poetry run python -m ndgr_client download <nicolive_program_id or jikkyo_id> --o
 > [!TIP]
 > `jikkyo_id` に `all` を指定すると、すべてのニコニコ実況チャンネルのコメントを一括でダウンロードできます。
 
+### Use as Library
+
+今のところ PyPI には公開していませんが、GitHub の URL を指定してインストールできます。
+
+```bash
+pip install git+https://github.com/tsukumijima/NDGRClient
+```
+
 ## Special Thanks
 
 [@rinsuki](https://github.com/rinsuki) (https://github.com/rinsuki-lab/ndgr-reader)

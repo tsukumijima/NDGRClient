@@ -13,7 +13,7 @@ from datetime import datetime
 from rich import print
 from rich.rule import Rule
 from rich.style import Style
-from typing import Any, AsyncGenerator, cast, Type, TypeVar
+from typing import Any, AsyncGenerator, cast, Literal, Type, TypeVar
 
 from ndgr_client.protobuf_stream_reader import ProtobufStreamReader
 from ndgr_client.proto.dwango.nicolive.chat.data import atoms_pb2 as atoms
@@ -170,7 +170,8 @@ class NDGRClient:
     async def streamComments(self) -> AsyncGenerator[NDGRComment, None]:
         """
         NDGR サーバーからリアルタイムコメントを随時ストリーミングする非同期ジェネレータ
-        このメソッドは例外発生時か放送終了時を除き、基本的に終了しない
+        このメソッドは番組が終了するか例外が発生するまで終了しない
+        ニコニコ実況番組では、受信中の実況番組の終了直後に新しい番組が開始されたとき、透過的に継続してコメントを受信する
 
         Yields:
             NDGRComment: NDGR サーバーから受信したコメント
@@ -180,122 +181,230 @@ class NDGRClient:
             AssertionError: 解析に失敗した場合
         """
 
-        # 視聴ページから NDGR View API の URI を取得する
-        nicolive_program_info = await self.parseWatchPage()
-        view_api_uri = await self.fetchNDGRViewURI(nicolive_program_info.webSocketUrl)
-
-        # NDGR View API への初回アクセスかどうかを表すフラグ
-        is_first_time: bool = True
-        # NDGR View API への次回アクセス時に ?at= に渡すタイムスタンプ (が格納された ChunkedEntry.ReadyForNext)
-        ready_for_next: chat.ChunkedEntry.ReadyForNext | None = None
-        # 既知のメッセージ ID を格納する集合
-        known_message_ids: set[str] = set()
-
-        # process_segment() で受信したコメントを yield で返すための Queue
-        comment_queue = asyncio.Queue()
-        # アクティブなセグメント受信タスクを格納する辞書
-        active_segments: dict[str, asyncio.Task[None]] = {}
-
-        async def process_segment(segment: chat.MessageSegment) -> None:
+        async def fetch_program_info() -> Literal['RESTART', 'ENDED']:
             """
-            NDGR Segment API から 16 秒間コメントをリアルタイムストリーミングし、受信次第 Queue に格納する
+            毎分 05 秒に視聴ページから NicoLiveProgramInfo を取得し、状態を監視する
+            この関数は番組の放送が終了するか、後続の番組に切り替えてコメント受信処理を再開する必要が出るまで終了しない
+
+            Returns:
+                Literal['ENDED']: 番組の放送が終了した (後続の番組もない) 場合は 'ENDED' を返す
+                Literal['RESTART']: 後続の番組に切り替えてコメント受信処理を再開するために 'RESTART' を返す
             """
+
+            # 毎分 05 秒に実行
+            ## 05 秒なのは、00 秒ちょうどにアクセスするとギリギリ変更反映前のデータを取得してしまう可能性があるため
+            while True:
+                await asyncio.sleep(60 - datetime.now().second % 60 + 5)
+                try:
+                    # 視聴ページから self.nicolive_program_id に対応する現在の番組ステータスを取得する
+                    new_program_info = await self.parseWatchPage()
+                    if self.show_log:
+                        print(f'Title:  {new_program_info.title} [{new_program_info.status}] ({new_program_info.nicoliveProgramId})')
+                        print(Rule(characters='-', style=Style(color='#E33157')))
+
+                    # ニコニコ実況番組ではなく、かつ番組の放送が終了した
+                    if self.jikkyo_id is None and new_program_info.status == 'ENDED':
+                        return 'ENDED'  # 終了信号を返す
+
+                    # ニコニコ実況番組のみ
+                    elif self.jikkyo_id is not None:
+
+                        # 番組の放送が終了した場合、ニコニコ実況チャンネル ID とニコニコ生放送番組 ID のマッピングを更新し、
+                        # 後続のニコニコ実況番組に切り替えてコメント受信処理を再開する
+                        ## 08/22 まで公式生放送で運用されている暫定ニコニコ実況向けの処理
+                        if new_program_info.status == 'ENDED':
+                            await NDGRClient.updateJikkyoChannelIDMap()
+                            self.nicolive_program_id = NDGRClient.JIKKYO_CHANNEL_ID_MAP[self.jikkyo_id]
+                            return 'RESTART'  # 再起動信号を返す
+
+                        # 同一ニコニコチャンネルで連続して配信されているものの、ニコニコ生放送番組 ID が変更された場合は、
+                        # 後続のニコニコ実況番組に切り替えてコメント受信処理を再開する
+                        ## ニコニコ実況の毎日 04:00 での番組リセット向けの処理
+                        elif new_program_info.nicoliveProgramId != self.nicolive_program_id:
+                            return 'RESTART'  # 再起動信号を返す
+
+                except Exception:
+                    if self.show_log:
+                        print('Error fetching program info:')
+                        print(traceback.format_exc())
+                        print(Rule(characters='-', style=Style(color='#E33157')))
+                    await asyncio.sleep(1)  # ビジーにならないように次回実行を待つ
+
+        async def stream_comments_inner() -> AsyncGenerator[NDGRComment | Literal['ENDED', 'RESTART'], None]:
+            """
+            NDGR View API から ChunkedEntry をリアルタイムストリーミングし、NDGR Segment API への接続情報を取得して ChunkedMessage 受信タスクを開始する
+            この関数は番組の放送が終了するか例外が発生するまで終了しない
+            """
+
+            # 視聴ページから NDGR View API の URI を取得する
+            nicolive_program_info = await self.parseWatchPage()
+            if self.show_log:
+                print(f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})')
+                print(f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
+                      f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
+                      f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)')
+                print(Rule(characters='-', style=Style(color='#E33157')))
+            view_api_uri = await self.fetchNDGRViewURI(nicolive_program_info.webSocketUrl)
+
+            # NDGR View API への初回アクセスかどうかを表すフラグ
+            is_first_time: bool = True
+            # NDGR View API への次回アクセス時に ?at= に渡すタイムスタンプ (が格納された ChunkedEntry.ReadyForNext)
+            ready_for_next: chat.ChunkedEntry.ReadyForNext | None = None
+            # 既知のメッセージ ID を格納する集合
+            known_message_ids: set[str] = set()
+
+            # process_segment() で受信したコメントを yield で返すための Queue
+            comment_queue: asyncio.Queue[NDGRComment] = asyncio.Queue()
+            # アクティブな ChunkedMessage 受信タスクを格納する辞書
+            active_segments: dict[str, asyncio.Task[None]] = {}
+
+            async def process_chunked_entries() -> None:
+                """
+                NDGR View API から ChunkedEntry をリアルタイムストリーミングし、
+                NDGR Segment API への接続情報を取得して ChunkedMessage 受信タスクを開始する
+                """
+
+                nonlocal ready_for_next, is_first_time
+                while True:
+
+                    # 状態次第で NDGR View API の ?at= に渡すタイムスタンプを決定する
+                    # 初回アクセス時は ?at=now を指定する
+                    # 次回アクセス時は ?at= に ChunkedEntry.ReadyForNext.at に設定されている UNIX タイムスタンプを指定する
+                    at: str | None = None
+                    if ready_for_next is not None:
+                        at = str(ready_for_next.at)
+                    elif is_first_time:
+                        at = 'now'
+                        is_first_time = False
+
+                    ready_for_next = None
+
+                    # NDGR View API への接続が失敗した場合は 3 回リトライする
+                    retry_count = 0
+                    while retry_count < 3:
+                        try:
+                            async for chunked_entry in self.fetchChunkedEntries(view_api_uri, at):
+
+                                # NDGR Segment API への接続情報を取得
+                                ## 現在、現在受信中のセグメントの配信終了時刻の 6 秒前に次のセグメントへの接続情報が配信される仕様になっている
+                                ## 次のセグメントへの接続情報を受信次第、即座にセグメント受信タスクを開始する
+                                ## こうすることで、前のセグメントの配信が終了してから次のセグメントの配信開始後に受信するまでの時間的ギャップを回避できる
+                                if chunked_entry.HasField('segment'):
+
+                                    # セグメントの配信開始時刻と配信終了時刻の UNIX タイムスタンプを取得
+                                    ## セグメントには配信開始時刻より前から接続できる
+                                    segment = chunked_entry.segment
+                                    segment_from = segment.from_.seconds + segment.from_.nanos / 1e9
+                                    segment_until = segment.until.seconds + segment.until.nanos / 1e9
+                                    if self.show_log:
+                                        print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] '
+                                              f'Segment From: {datetime.fromtimestamp(segment_from).strftime("%H:%M:%S")} / '
+                                              f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}')
+                                        print(Rule(characters='-', style=Style(color='#E33157')))
+
+                                    # 新しい ChunkedMessage 受信タスクを作成し、開始
+                                    task = asyncio.create_task(process_chunked_message(segment))
+                                    active_segments[segment.uri] = task
+
+                                # 次回の NDGR View API アクセス用タイムスタンプを取得
+                                elif chunked_entry.HasField('next'):
+                                    ready_for_next = chunked_entry.next
+
+                            # 例外が発生することなく受信が完了したらループを抜ける
+                            break
+
+                        except Exception:
+                            if self.show_log:
+                                print('Error during fetch:')
+                                print(traceback.format_exc())
+                                print(Rule(characters='-', style=Style(color='#E33157')))
+                            retry_count += 1
+                            if retry_count >= 3:
+                                raise  # 3回リトライしても失敗したら例外を投げる
+                            await asyncio.sleep(1)  # 1秒待ってリトライ
+
+                    # chunked_entry.next が設定されていない場合は放送が終了したとみなす
+                    if ready_for_next is None:
+                        break
+
+            async def process_chunked_message(segment: chat.MessageSegment) -> None:
+                """
+                NDGR Segment API から 16 秒間 ChunkedMessage (から変換された NDGRComment) をリアルタイムストリーミングし、
+                受信次第 stream_comments_inner() で yield するための Queue に格納する
+                """
+
+                try:
+                    async for comment in self.fetchChunkedMessages(segment.uri):
+                        await comment_queue.put(comment)
+                except Exception:
+                    if self.show_log:
+                        print('Error processing segment:')
+                        print(traceback.format_exc())
+                        print(Rule(characters='-', style=Style(color='#E33157')))
+                finally:
+                    # 配信終了時刻を過ぎて ChunkedMessage 受信が完了したらアクティブリストから削除
+                    active_segments.pop(segment.uri, None)
+
+            # ChunkedEntry 受信タスクを開始
+            chunked_entries_task = asyncio.create_task(process_chunked_entries())
+            program_info_task = asyncio.create_task(fetch_program_info())
+
             try:
-                async for comment in self.fetchChunkedMessages(segment.uri):
-                    await comment_queue.put(comment)
-            except Exception:
-                if self.show_log:
-                    print(f'Error processing segment:')
-                    print(traceback.format_exc())
-                    print(Rule(characters='-', style=Style(color='#E33157')))
+                while True:
+                    # コメントキューからコメントを取り出すタスクと番組情報状態監視タスクを同時に待機し、どちらかが完了するまで待機
+                    ## 大半のケースでコメントキューの方が早く完了する (コメントは多い時だと 0.01 秒間隔で降ってくるため)
+                    done, _ = await asyncio.wait(
+                        [asyncio.create_task(comment_queue.get()), program_info_task],
+                        return_when = asyncio.FIRST_COMPLETED,
+                    )
+
+                    # 先に完了した方のタスクを処理
+                    for task in done:
+
+                        # 番組情報状態監視タスクが先に完了した: 現在コメント受信中の番組の放送が終了した
+                        if task is program_info_task:
+                            result = cast(Literal['ENDED', 'RESTART'], task.result())
+                            # ここで ENDED (処理終了) または RESTART (次の番組へ移行) を返した時点で
+                            ## stream_comments_inner() での処理は終了する
+                            if self.show_log:
+                                if result == 'ENDED':
+                                    print('Program Ended. Stopping...')
+                                elif result == 'RESTART':
+                                    print('Program Ended. Switching to Next Program...')
+                                print(Rule(characters='-', style=Style(color='#E33157')))
+                            yield result
+
+                        # コメントキューから受信したコメントを取得
+                        else:
+                            comment = cast(NDGRComment, await task)
+                            # 重複チェック：未受信のコメントのみを返す
+                            if comment.id not in known_message_ids:
+                                known_message_ids.add(comment.id)
+                                yield comment  # 受信したコメントを yield
+                            comment_queue.task_done()
             finally:
-                # 配信終了時刻を過ぎてセグメント受信が完了したらアクティブリストから削除
-                active_segments.pop(segment.uri, None)
 
-        async def process_chunked_entries() -> None:
-            """
-            NDGR View API から ChunkedEntry をリアルタイムストリーミングし、
-            NDGR Segment API への接続情報を取得してセグメント受信タスクを開始する
-            """
-            nonlocal ready_for_next, is_first_time
-            while True:
+                # すべてのアクティブな ChunkedMessage 受信タスクをキャンセル
+                for task in active_segments.values():
+                    task.cancel()
+                chunked_entries_task.cancel()
+                program_info_task.cancel()
 
-                # 状態次第で NDGR View API の ?at= に渡すタイムスタンプを決定する
-                # 初回アクセス時は ?at=now を指定する
-                # 次回アクセス時は ?at= に ChunkedEntry.ReadyForNext.at に設定されている UNIX タイムスタンプを指定する
-                at: str | None = None
-                if ready_for_next is not None:
-                    at = str(ready_for_next.at)
-                elif is_first_time:
-                    at = 'now'
-                    is_first_time = False
+                # タスクが完全に終了するのを待つ
+                await asyncio.gather(chunked_entries_task, program_info_task, *active_segments.values(), return_exceptions=True)
 
-                ready_for_next = None
-
-                retry_count = 0
-                while retry_count < 3:
-                    try:
-                        async for chunked_entry in self.fetchChunkedEntries(view_api_uri, at):
-
-                            # NDGR Segment API への接続情報を取得
-                            ## 現在、現在受信中のセグメントの配信終了時刻の 6 秒前に次のセグメントへの接続情報が配信される仕様になっている
-                            ## 次のセグメントへの接続情報を受信次第、即座にセグメント受信タスクを開始する
-                            ## こうすることで、前のセグメントの配信が終了してから次のセグメントの配信開始後に受信するまでの時間的ギャップを回避できる
-                            if chunked_entry.HasField('segment'):
-
-                                # セグメントの配信開始時刻と配信終了時刻の UNIX タイムスタンプを取得
-                                ## セグメントには配信開始時刻より前から接続できる
-                                segment = chunked_entry.segment
-                                segment_from = segment.from_.seconds + segment.from_.nanos / 1e9
-                                segment_until = segment.until.seconds + segment.until.nanos / 1e9
-                                if self.show_log:
-                                    print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] '
-                                          f'Segment From: {datetime.fromtimestamp(segment_from).strftime("%H:%M:%S")} / '
-                                          f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}')
-                                    print(Rule(characters='-', style=Style(color='#E33157')))
-
-                                # 新しいセグメント受信タスクを作成し、開始
-                                task = asyncio.create_task(process_segment(segment))
-                                active_segments[segment.uri] = task
-
-                            # 次回の NDGR View API アクセス用タイムスタンプを取得
-                            elif chunked_entry.HasField('next'):
-                                ready_for_next = chunked_entry.next
-
-                        break  # 成功したらループを抜ける
-
-                    except Exception:
-                        if self.show_log:
-                            print(f'Error during fetch:')
-                            print(traceback.format_exc())
-                            print(Rule(characters='-', style=Style(color='#E33157')))
-                        retry_count += 1
-                        if retry_count >= 3:
-                            raise  # 3回リトライしても失敗したら例外を投げる
-                        await asyncio.sleep(1)  # 1秒待ってリトライ
-
-                if ready_for_next is None:
-                    # next が設定されていない場合は放送が終了したとみなす
-                    break
-
-        # ChunkedEntry 受信タスクを開始
-        chunked_entries_task = asyncio.create_task(process_chunked_entries())
-
-        try:
-            while True:
-                # 非同期で実行中のタスクからコメントを受信し、既に受信したコメントでなければ yield で返す
-                comment = await comment_queue.get()
-                if comment.id not in known_message_ids:
-                    known_message_ids.add(comment.id)
+        # コメント受信処理を開始
+        while True:
+            async for comment in stream_comments_inner():
+                # comment が 'ENDED' のときはこのメソッドでの処理を終了
+                if comment == 'ENDED':
+                    return
+                # comment が 'RESTART' のときは次のループに入り、新たに stream_comments_inner() を呼び出す
+                elif comment == 'RESTART':
+                    continue
+                # comment が NDGRComment のときは yield する
+                else:
                     yield comment
-                comment_queue.task_done()
-        finally:
-            # すべてのアクティブなセグメント受信タスクをキャンセル
-            for task in active_segments.values():
-                task.cancel()
-            chunked_entries_task.cancel()
-            # タスクが完全に終了するのを待つ
-            await asyncio.gather(chunked_entries_task, *active_segments.values(), return_exceptions=True)
 
 
     async def downloadBackwardComments(self) -> list[NDGRComment]:
@@ -312,6 +421,12 @@ class NDGRClient:
 
         # 視聴ページから NDGR View API の URI を取得する
         nicolive_program_info = await self.parseWatchPage()
+        if self.show_log:
+            print(f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})')
+            print(f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
+                  f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
+                  f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)')
+            print(Rule(characters='-', style=Style(color='#E33157')))
         view_api_uri = await self.fetchNDGRViewURI(nicolive_program_info.webSocketUrl)
 
         # NDGR View API への初回アクセスかどうかを表すフラグ
@@ -473,12 +588,6 @@ class NDGRClient:
             scheduledEndTime = embedded_data['program']['scheduledEndTime'],
             webSocketUrl = embedded_data['site']['relive']['webSocketUrl'],
         )
-        if self.show_log:
-            print(f'Title:  {program_info.title} [{program_info.status}] ({program_info.nicoliveProgramId})')
-            print(f'Period: {datetime.fromtimestamp(program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
-              f'{datetime.fromtimestamp(program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
-              f'({datetime.fromtimestamp(program_info.endTime) - datetime.fromtimestamp(program_info.openTime)}h)')
-            print(Rule(characters='-', style=Style(color='#E33157')))
 
         return program_info
 

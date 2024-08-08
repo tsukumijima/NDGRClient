@@ -18,6 +18,7 @@ async def stream(nicolive_program_id: str = typer.Argument(help='Nicolive progra
     print(Rule(characters='-', style=Style(color='#E33157')))
 
     # NDGRClient を初期化
+    await NDGRClient.updateJikkyoChannelIDMap()
     ndgr_client = NDGRClient(nicolive_program_id, show_log=True)
 
     # コメントをエンドレスでストリーミング開始
@@ -36,10 +37,11 @@ async def download(
 
     # jikkyo_id に 'all' が指定された場合は全てのチャンネルをダウンロード
     if nicolive_program_id == 'all':
-        jikkyo_ids = [id for id in NDGRClient.JIKKYO_ID_TO_REKARI_ID_MAP.keys()]
+        jikkyo_ids = [id for id in NDGRClient.JIKKYO_CHANNEL_ID_MAP.keys()]
     else:
         jikkyo_ids = [nicolive_program_id]
 
+    await NDGRClient.updateJikkyoChannelIDMap()
     comment_counts: dict[str, int] = {}
     for jid in jikkyo_ids:
         # NDGRClient を初期化

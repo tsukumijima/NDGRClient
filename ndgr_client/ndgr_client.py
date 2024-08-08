@@ -42,19 +42,18 @@ class NDGRClient:
     USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
     SEC_CH_UA = '"Chromium";v="126", "Google Chrome";v="126", "Not-A.Brand";v="99"'
 
-    # 旧来の実況 ID とニコニコ生放送の ID のマッピング
-    ## 08/05 時点の値、今後変更される可能性もある
-    JIKKYO_ID_TO_REKARI_ID_MAP: dict[str, str] = {
-        'jk1': 'lv345479988',
-        'jk2': 'lv345479989',
-        'jk4': 'lv345479991',
-        'jk5': 'lv345479993',
-        'jk6': 'lv345479994',
-        'jk7': 'lv345479995',
-        'jk8': 'lv345479996',
-        'jk9': 'lv345479997',
-        'jk101': 'lv345479990',
-        'jk211': 'lv345479998',
+    # 旧来の実況チャンネル ID とニコニコチャンネル ID のマッピング
+    JIKKYO_CHANNEL_ID_MAP: dict[str, str] = {
+        'jk1': 'ch2646436',
+        'jk2': 'ch2646437',
+        'jk4': 'ch2646438',
+        'jk5': 'ch2646439',
+        'jk6': 'ch2646440',
+        'jk7': 'ch2646441',
+        'jk8': 'ch2646442',
+        'jk9': 'ch2646485',
+        'jk101': 'ch2647992',
+        'jk211': 'ch2646846',
     }
 
 
@@ -69,14 +68,16 @@ class NDGRClient:
 
         if nicolive_program_id.startswith('jk'):
             # nicolive_program_id が jk から始まる場合、ニコニコ実況 ID として扱う
-            if nicolive_program_id not in self.JIKKYO_ID_TO_REKARI_ID_MAP:
+            if nicolive_program_id not in self.JIKKYO_CHANNEL_ID_MAP:
                 raise ValueError(f'Invalid jikkyo_id: {nicolive_program_id}')
-            self.nicolive_program_id = self.JIKKYO_ID_TO_REKARI_ID_MAP[nicolive_program_id]
+            self.nicolive_program_id = self.JIKKYO_CHANNEL_ID_MAP[nicolive_program_id]
+            self.jikkyo_id = nicolive_program_id
         else:
-            # それ以外の場合は lv から始まる通常のニコニコ生放送 ID として扱う
+            # それ以外の場合は lv から始まる通常のニコニコ生放送番組 ID として扱う
             if not nicolive_program_id.startswith('lv'):
                 raise ValueError(f'Invalid nicolive_program_id: {nicolive_program_id}')
             self.nicolive_program_id = nicolive_program_id
+            self.jikkyo_id = None
 
         self.show_log = show_log
 
@@ -100,6 +101,65 @@ class NDGRClient:
             ## リダイレクトを追跡する
             follow_redirects = True,
         )
+
+
+    @classmethod
+    async def updateJikkyoChannelIDMap(cls) -> None:
+        """
+        https://originalnews.nico/464285 から最新の実況チャンネル ID とニコニコチャンネル ID のマッピングを取得し、
+        クラス変数 JIKKYO_CHANNEL_ID_MAP に格納する
+        """
+
+        url = 'https://originalnews.nico/464285'
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+        gallery = soup.find('div', id='gallery-1')
+        if not gallery:
+            raise ValueError('Gallery not found')
+
+        new_map = {}
+        for item in cast(Tag, gallery).find_all('dl', class_='gallery-item'):
+            caption = item.find('dd', class_='wp-caption-text gallery-caption')
+            if not caption:
+                continue
+
+            link = caption.find('a')
+            if not link:
+                continue
+            href = link.get('href')
+            if not href:
+                continue
+
+            channel_name = link.text.replace('はこちら', '').strip()
+            live_id = href.split('/')[-1]
+            if channel_name == 'NHK総合':
+                new_map['jk1'] = live_id
+            elif channel_name == 'NHK Eテレ':
+                new_map['jk2'] = live_id
+            elif channel_name == '日本テレビ':
+                new_map['jk4'] = live_id
+            elif channel_name == 'テレビ朝日':
+                new_map['jk5'] = live_id
+            elif channel_name == 'TBSテレビ':
+                new_map['jk6'] = live_id
+            elif channel_name == 'テレビ東京':
+                new_map['jk7'] = live_id
+            elif channel_name == 'フジテレビ':
+                new_map['jk8'] = live_id
+            elif channel_name == 'TOKYO MX':
+                new_map['jk9'] = live_id
+            elif channel_name == 'NHK BS':
+                new_map['jk101'] = live_id
+            elif channel_name == 'BS11':
+                new_map['jk211'] = live_id
+
+        if len(new_map) != 10:
+            raise ValueError(f'Expected 10 channels, but found {len(new_map)}')
+
+        cls.JIKKYO_CHANNEL_ID_MAP = new_map
 
 
     async def streamComments(self) -> AsyncGenerator[NDGRComment, None]:
@@ -384,7 +444,6 @@ class NDGRClient:
             title = embedded_data['program']['title'],
             description = embedded_data['program']['description'],
             status = embedded_data['program']['status'],
-            releaseTime = embedded_data['program']['releaseTime'],
             openTime = embedded_data['program']['openTime'],
             beginTime = embedded_data['program']['beginTime'],
             vposBaseTime = embedded_data['program']['vposBaseTime'],
@@ -395,8 +454,8 @@ class NDGRClient:
         if self.show_log:
             print(f'Title:  {program_info.title} [{program_info.status}]')
             print(f'Period: {datetime.fromtimestamp(program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
-              f'{datetime.fromtimestamp(program_info.scheduledEndTime).strftime("%Y-%m-%d %H:%M:%S")} '
-              f'({datetime.fromtimestamp(program_info.scheduledEndTime) - datetime.fromtimestamp(program_info.openTime)}h)')
+              f'{datetime.fromtimestamp(program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
+              f'({datetime.fromtimestamp(program_info.endTime) - datetime.fromtimestamp(program_info.openTime)}h)')
             print(Rule(characters='-', style=Style(color='#E33157')))
 
         return program_info
@@ -419,6 +478,10 @@ class NDGRClient:
             httpx.HTTPStatusError: HTTP リクエストが失敗した場合
             AssertionError: 解析に失敗した場合
         """
+
+        # もし WebSocket URL が空文字列の場合は例外を送出
+        if webSocketUrl == '':
+            raise ValueError('webSocketUrl is empty.')
 
         # ニコニコ生放送の視聴ページから取得した webSocketUrl に接続
         async with websockets.connect(webSocketUrl) as websocket:

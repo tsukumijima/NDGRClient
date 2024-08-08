@@ -16,8 +16,6 @@ class NicoLiveProgramInfo(BaseModel):
     description: str
     # 生放送の放送ステータス
     status: str
-    # 生放送番組のリリース時刻 (Unix タイムスタンプ)
-    releaseTime: int
     # 生放送番組の公開時刻 (開始前の待機時間を含む) (Unix タイムスタンプ)
     openTime: int
     # 生放送番組の開始時刻 (Unix タイムスタンプ)

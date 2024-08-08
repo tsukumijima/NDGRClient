@@ -1,5 +1,6 @@
 
 import typer
+from datetime import datetime
 from pathlib import Path
 from rich import print
 from rich.rule import Rule
@@ -21,6 +22,7 @@ async def stream(nicolive_program_id: str = typer.Argument(help='Nicolive progra
 
     # コメントをエンドレスでストリーミング開始
     async for comment in ndgr_client.streamComments():
+        print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Comment Received: [grey70]{comment.id}[/grey70]')
         print(str(comment))
         print(Rule(characters='-', style=Style(color='#E33157')))
 

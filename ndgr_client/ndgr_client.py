@@ -488,8 +488,6 @@ class NDGRClient:
                 api_name = 'NDGR View API'
             elif '/segment/' in uri:
                 api_name = 'NDGR Segment API'
-            elif '/backward/' in uri:
-                api_name = 'NDGR Backward API'
             print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Fetching {api_name} ...')
             print(uri)
             print(Rule(characters='-', style=Style(color='#E33157')))

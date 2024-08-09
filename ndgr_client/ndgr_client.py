@@ -28,11 +28,11 @@ from ndgr_client.constants import (
 
 class NDGRClient:
     """
-    NDGR サーバーのクライアント実装
+    NDGR メッセージサーバーのクライアント実装
     実装にあたり、下記リポジトリが大変参考になった
     ref: https://github.com/rinsuki-lab/ndgr-reader
 
-    下記コードでは、便宜的に NDGR サーバーの各 API を下記のように呼称する
+    下記コードでは、便宜的に NDGR メッセージサーバーの各 API を下記のように呼称する
     ・NDGR View API : https://mpn.live.nicovideo.jp/api/view/v4/...
     ・NDGR Segment API : https://mpn.live.nicovideo.jp/data/segment/v4/...
     ・NDGR Backward API : https://mpn.live.nicovideo.jp/data/backward/v4/...
@@ -176,12 +176,12 @@ class NDGRClient:
 
     async def streamComments(self) -> AsyncGenerator[NDGRComment, None]:
         """
-        NDGR サーバーからリアルタイムコメントを随時ストリーミングする非同期ジェネレータ
+        NDGR メッセージサーバーからリアルタイムコメントを随時ストリーミングする非同期ジェネレータ
         このメソッドは番組が終了するか例外が発生するまで終了しない
         ニコニコ実況番組では、受信中の実況番組の終了直後に新しい番組が開始されたとき、透過的に継続してコメントを受信する
 
         Yields:
-            NDGRComment: NDGR サーバーから受信したコメント
+            NDGRComment: NDGR メッセージサーバーから受信したコメント
 
         Raises:
             httpx.HTTPStatusError: HTTP リクエストが失敗した場合
@@ -419,7 +419,7 @@ class NDGRClient:
 
     async def downloadBackwardComments(self) -> list[NDGRComment]:
         """
-        NDGR サーバーから過去に投稿されたコメントを遡ってダウンロードする
+        NDGR メッセージサーバーから過去に投稿されたコメントを遡ってダウンロードする
 
         Returns:
             list[NDGRComment]: 過去に投稿されたコメントのリスト (投稿日時昇順)
@@ -605,8 +605,8 @@ class NDGRClient:
     async def fetchNDGRViewURI(self, webSocketUrl: str) -> str:
         """
         ニコニコ生放送の視聴ページから取得した webSocketUrl に接続し、NDGR View API の URI を取得する
-        Protobuf ストリームが返ることからして、NDGR サーバーは大災害前のニコ生の WebSocket API とは仕様が大きく異なる
-        この API を叩くことで NDGR サーバー内部でどこまでリソース確保が行われているのかはよくわからない…
+        Protobuf ストリームが返ることからして、NDGR メッセージサーバーは大災害前のニコ生の WebSocket API とは仕様が大きく異なる
+        この API を叩くことで NDGR メッセージサーバー内部でどこまでリソース確保が行われているのかはよくわからない…
         (レスポンスヘッダーを見る限り CloudFront のキャッシュがヒットしてそうなので、多くの同時接続を捌けるようキャッシュされている？)
 
         Args:

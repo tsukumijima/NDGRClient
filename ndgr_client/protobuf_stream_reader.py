@@ -4,7 +4,7 @@ from rich import print
 
 class ProtobufStreamReader:
     """
-    NDGR サーバーの Protocol Buffer ストリームを読み取るためのクラス
+    NDGR メッセージサーバーの Length-Delimited Protobuf Streams を読み取るためのクラス
     下記コードを Python に移植したもの (どういうロジックなのかはよくわかってない)
     ref: https://github.com/rinsuki-lab/ndgr-reader/blob/main/src/protobuf-stream-reader.ts
     """

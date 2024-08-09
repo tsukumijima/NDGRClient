@@ -34,7 +34,7 @@ class NicoLiveProgramInfo(BaseModel):
 
 class NDGRComment(BaseModel):
     """
-    NDGR サーバーから返される Protobuf 形式のコメントデータのうち、有用そうな情報
+    NDGR メッセージサーバーから返される Protobuf 形式のコメントデータのうち、有用そうな情報
     フィールド名は基本的に Protobuf の各値のキー名と同一
     """
     # コメント ID (?) / ex: "EhgKEgmBfWBX18SQARFaOaNDSRHkkhCy-h0"

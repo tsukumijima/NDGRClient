@@ -302,8 +302,8 @@ class NDGRClient:
                                     # セグメントの配信開始時刻と配信終了時刻の UNIX タイムスタンプを取得
                                     ## セグメントには配信開始時刻より前から接続できる
                                     segment = chunked_entry.segment
-                                    segment_from = segment.from_.seconds + segment.from_.nanos / 1e9
-                                    segment_until = segment.until.seconds + segment.until.nanos / 1e9
+                                    segment_from = segment.from_.seconds + (segment.from_.nanos / 1e9)
+                                    segment_until = segment.until.seconds + (segment.until.nanos / 1e9)
                                     if self.show_log:
                                         print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] '
                                               f'Segment From: {datetime.fromtimestamp(segment_from).strftime("%H:%M:%S")} / '
@@ -805,7 +805,7 @@ class NDGRClient:
 
         comment = NDGRComment(
             id = chunked_message.meta.id,
-            at = datetime.fromtimestamp(float(f'{chunked_message.meta.at.seconds}.{chunked_message.meta.at.nanos}')),
+            at = datetime.fromtimestamp(chunked_message.meta.at.seconds + (chunked_message.meta.at.nanos / 1e9)),
             live_id = chunked_message.meta.origin.chat.live_id,
             raw_user_id = chunked_message.message.chat.raw_user_id,
             hashed_user_id = chunked_message.message.chat.hashed_user_id,

@@ -325,7 +325,7 @@ class NDGRClient:
                             raise
                         except Exception:
                             if self.show_log:
-                                print('Error during fetch:')
+                                print('Error fetching chunked entries:')
                                 print(traceback.format_exc())
                                 print(Rule(characters='-', style=Style(color='#E33157')))
                             retry_count += 1
@@ -351,7 +351,7 @@ class NDGRClient:
                     raise
                 except Exception:
                     if self.show_log:
-                        print('Error processing segment:')
+                        print('Error fetching chunked messages:')
                         print(traceback.format_exc())
                         print(Rule(characters='-', style=Style(color='#E33157')))
                 finally:
@@ -762,16 +762,19 @@ class NDGRClient:
                 break
 
             # HTTP 接続エラー発生時、しばらく待ってからリトライを試みる
-            except (httpx.HTTPError, httpx.StreamError) as e:
+            except (httpx.HTTPError, httpx.StreamError):
                 if attempt < max_retries - 1:
                     if self.show_log:
-                        print(f'HTTP error occurred: {e}. Retrying in {retry_delay} seconds...')
+                        print(f'Error fetching {api_name}. Retrying in {retry_delay} seconds...')
+                        print(traceback.format_exc())
                     await asyncio.sleep(retry_delay)
 
                 # 最後の試行でも失敗した場合、例外を再発生させる
                 else:
                     if self.show_log:
-                        print(f'Max retries reached. Error: {e}')
+                        print(f'Error fetching {api_name}. Max retries reached.')
+                        print(traceback.format_exc())
+                        print(Rule(characters='-', style=Style(color='#E33157')))
                     raise
 
 

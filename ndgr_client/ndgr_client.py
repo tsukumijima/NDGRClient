@@ -1136,6 +1136,13 @@ class NDGRClient:
             chat_content = comment_dict['content']
             del comment_dict['content']
 
+            # ユーザー ID が 35 文字以上のコメントを NX-Jikkyo に投稿されたコメントと判定し、識別用に nx_jikkyo="1" を追加する
+            ## NX-Jikkyo で生成されるユーザー ID は SHA-1: 40 文字 (初期に投稿されたコメントのみ UUID v4: 36 文字) のため、
+            ## 35 文字以上であれば確実に NX-Jikkyo に投稿されたコメントだと判定できる
+            ## NDGRClient ライブラリの責務的には本来ここに書くべき処理ではないが、とはいえこの関数を独自実装するとコードが重複するためやむを得ず…
+            if len(comment_dict['user_id']) >= 35:
+                comment_dict['nx_jikkyo'] = '1'
+
             # 属性を XML エレメントに追加
             sanitized_attrs = {key: sanitize_for_xml(str(value)) for key, value in comment_dict.items() if value is not None}
             chat_elem_tree = ET.SubElement(elem_tree, 'chat', sanitized_attrs)

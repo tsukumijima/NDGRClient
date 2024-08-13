@@ -89,15 +89,15 @@ class NDGRClient:
             ## ニコニコチャンネル ID とニコニコ生放送番組 ID は異なる概念だが、ニコニコ生放送では /watch/(ニコニコチャンネル ID) の URL で
             ## 当該チャンネルで現在放送中の番組にアクセスできる仕様があるので、それを使っている
             if nicolive_program_id not in self.JIKKYO_CHANNEL_ID_MAP:
-                raise ValueError(f'Invalid jikkyo_id: {nicolive_program_id}')
+                raise ValueError(f'Invalid jikkyo_channel_id: {nicolive_program_id}')
             self.nicolive_program_id = self.JIKKYO_CHANNEL_ID_MAP[nicolive_program_id]
-            self.jikkyo_id = nicolive_program_id
+            self.jikkyo_channel_id = nicolive_program_id
         else:
             # それ以外の場合は lv から始まる通常のニコニコ生放送番組 ID として扱う
             if not nicolive_program_id.startswith('lv'):
                 raise ValueError(f'Invalid nicolive_program_id: {nicolive_program_id}')
             self.nicolive_program_id = nicolive_program_id
-            self.jikkyo_id = None
+            self.jikkyo_channel_id = None
 
         self.verbose = verbose
         self.show_log = console_output
@@ -187,6 +187,9 @@ class NDGRClient:
             ValueError: ニコニコ実況のチャンネル ID が指定されていない場合
             httpx.HTTPStatusError: ニコニコ API へのリクエストに失敗した場合
         """
+
+        if jikkyo_channel_id.startswith('jk') is False:
+            raise ValueError(f'Invalid jikkyo_channel_id: {jikkyo_channel_id}')
 
         class NicoLiveProgramBroadcastPeriod(TypedDict):
             """
@@ -412,18 +415,18 @@ class NDGRClient:
                         new_program_info = await self.fetchNicoLiveProgramInfo()
 
                         # 受信中番組がニコニコ実況番組ではなく、かつ番組の放送が終了した
-                        if self.jikkyo_id is None and new_program_info.status == 'ENDED':
+                        if self.jikkyo_channel_id is None and new_program_info.status == 'ENDED':
                             return 'ENDED'  # 終了信号を返す
 
                         # 受信中番組がニコニコ実況番組のときのみ
-                        elif self.jikkyo_id is not None:
+                        elif self.jikkyo_channel_id is not None:
 
                             # 番組の放送が終了した場合、ニコニコ実況チャンネル ID とニコニコ生放送番組 ID のマッピングを更新し、
                             # 後続のニコニコ実況番組に切り替えてコメント受信処理を再開する
                             ## 08/22 まで公式生放送で運用されている暫定ニコニコ実況向けの処理
                             if new_program_info.status == 'ENDED':
                                 await NDGRClient.updateJikkyoChannelIDMap()
-                                self.nicolive_program_id = NDGRClient.JIKKYO_CHANNEL_ID_MAP[self.jikkyo_id]
+                                self.nicolive_program_id = NDGRClient.JIKKYO_CHANNEL_ID_MAP[self.jikkyo_channel_id]
                                 return 'RESTART'  # 再起動信号を返す
 
                             # 同一ニコニコチャンネルで連続して配信されているものの、ニコニコ生放送番組 ID が変更された場合は、

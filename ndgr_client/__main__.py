@@ -38,7 +38,7 @@ async def download(
     output_dir: Path = typer.Option(default=Path('.'), help='Output directory'),
     verbose: bool = typer.Option(default=False, help='Verbose output')
 ):
-    print(Rule(characters='-', style=Style(color='#E33157')))
+    print(Rule(characters='=', style=Style(color='#E33157')))
 
     # jikkyo_id に 'all' が指定された場合は全てのチャンネルをダウンロード
     if nicolive_program_id == 'all':
@@ -55,21 +55,20 @@ async def download(
         # コメントをダウンロード
         comments = await ndgr_client.downloadBackwardComments()
         comment_counts[jid] = len(comments)
-        print(f'Total comments for {jid}: {comment_counts[jid]}')
-        print(Rule(characters='-', style=Style(color='#E33157')))
 
         # output_dir に {jid}.nicojk として保存
         output_dir.mkdir(parents=True, exist_ok=True)
         with open(output_dir / f'{jid}.nicojk', mode='w', encoding='utf-8') as f:
             f.write(NDGRClient.convertToXMLString(comments))
+        print(f'Total comments for {jid}: {comment_counts[jid]}')
         print(f'Saved to {output_dir / f"{jid}.nicojk"}')
-        print(Rule(characters='-', style=Style(color='#E33157')))
+        print(Rule(characters='=', style=Style(color='#E33157')))
 
     if nicolive_program_id == 'all':
         print('Download completed for all channels.')
         for jid, count in comment_counts.items():
-            print(f'{jid}: {count} comments')
-        print(Rule(characters='-', style=Style(color='#E33157')))
+            print(f'{jid:>5}: {count:>5} comments')
+        print(Rule(characters='=', style=Style(color='#E33157')))
 
 
 @app.command(help='Show version.')

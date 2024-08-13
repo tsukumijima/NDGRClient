@@ -456,7 +456,7 @@ class NDGRClient:
         self.print(f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
                    f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
                    f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)')
-        self.print(Rule(characters='-', style=Style(color='#E33157')))
+        self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
         view_api_uri = await self.fetchNDGRViewURI(nicolive_program_info.webSocketUrl)
 
         # NDGR View API への初回アクセスかどうかを表すフラグ
@@ -563,6 +563,7 @@ class NDGRClient:
 
             # 現在の comments の前側に temp_comments の内容を連結
             comments = temp_comments + comments
+            self.print(f'Retrieved a total of {len(comments)} comments.', end='\r')  # 進捗ログを上書きする
 
             # next フィールドが設定されていれば、続けて過去のコメントを取得
             if packed_segment.HasField('next'):
@@ -571,9 +572,12 @@ class NDGRClient:
             else:
                 break
 
-            # 短時間に大量アクセスすると 403 を返されるので、0.1秒待つ
-            await asyncio.sleep(0.1)
+            # 短時間に大量アクセスすると 403 を返される可能性があるので、0.01 秒待つ
+            ## ニコニコ生放送 (Re:仮) ではアクセス制限が厳しめだったが、今はそんなに待たなくても規制されないっぽい
+            await asyncio.sleep(0.01)
 
+        self.print('')  # 最終行の進捗ログを消さないように改行する
+        self.print(Rule(characters='-', style=Style(color='#E33157')))
         return comments
 
 

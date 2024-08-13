@@ -45,7 +45,11 @@ AWS 上で稼働していること、またこのような高度な仕組みは�
 poetry run python -m ndgr_client stream <nicolive_program_id or jikkyo_id>
 ```
 
-指定したニコニコ生放送 ID (ex: lv345479988) または実況チャンネル ID (ex: jk1, jk9, jk211) に対応する番組に投稿されたコメントを、リアルタイムにコンソールに表示します。
+指定したニコニコ生放送 ID (ex: lv345479988) または実況チャンネル ID (ex: jk1, jk9, jk211) に対応する番組に投稿されたコメントを、リアルタイムにコンソールに表示します。  
+終了するにはコンソールで `Ctrl+C` を入力してください。
+
+> [!TIP]
+> `--verbose` オプションを付けると、詳細な動作ログが出力されます。
 
 ### Download Kakolog
 
@@ -62,6 +66,9 @@ poetry run python -m ndgr_client download <nicolive_program_id or jikkyo_id> --o
 
 > [!TIP]
 > `jikkyo_id` に `all` を指定すると、すべてのニコニコ実況チャンネルのコメントを一括でダウンロードできます。
+
+> [!TIP]
+> `--verbose` オプションを付けると、詳細な動作ログが出力されます。
 
 ### Use as Library
 

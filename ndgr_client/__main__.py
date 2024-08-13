@@ -14,16 +14,20 @@ from ndgr_client.utils import AsyncTyper
 app = AsyncTyper(help='NDGRClient: Nicolive NDGR Message Server Client Library')
 
 @app.command(help='Stream comments from NDGR server.')
-async def stream(nicolive_program_id: str = typer.Argument(help='Nicolive program ID (ex: jk1, jk9, jk211 / lv345479988)')):
+async def stream(
+    nicolive_program_id: str = typer.Argument(help='Nicolive program ID (ex: jk1, jk9, jk211 / lv345479988)'),
+    verbose: bool = typer.Option(default=False, help='Verbose output')
+):
     print(Rule(characters='-', style=Style(color='#E33157')))
 
     # NDGRClient を初期化
     await NDGRClient.updateJikkyoChannelIDMap()
-    ndgr_client = NDGRClient(nicolive_program_id, show_log=True)
+    ndgr_client = NDGRClient(nicolive_program_id, verbose=verbose, console_output=True)
 
     # コメントをエンドレスでストリーミング開始
     async for comment in ndgr_client.streamComments():
-        print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Comment Received. [grey70](ID: {comment.id})[/grey70]')
+        if verbose is True:
+            print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Comment Received. [grey70](ID: {comment.id})[/grey70]')
         print(str(comment))
         print(Rule(characters='-', style=Style(color='#E33157')))
 
@@ -32,6 +36,7 @@ async def stream(nicolive_program_id: str = typer.Argument(help='Nicolive progra
 async def download(
     nicolive_program_id: str = typer.Argument(help='Nicolive program ID (ex: jk1, jk9, jk211 / lv345479988) or "all"'),
     output_dir: Path = typer.Option(default=Path('.'), help='Output directory'),
+    verbose: bool = typer.Option(default=False, help='Verbose output')
 ):
     print(Rule(characters='-', style=Style(color='#E33157')))
 
@@ -45,7 +50,7 @@ async def download(
     comment_counts: dict[str, int] = {}
     for jid in jikkyo_ids:
         # NDGRClient を初期化
-        ndgr_client = NDGRClient(jid, show_log=True)
+        ndgr_client = NDGRClient(jid, verbose=verbose, console_output=True)
 
         # コメントをダウンロード
         comments = await ndgr_client.downloadBackwardComments()

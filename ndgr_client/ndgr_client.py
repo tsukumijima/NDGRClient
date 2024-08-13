@@ -10,6 +10,7 @@ import traceback
 import websockets
 from bs4 import BeautifulSoup, Tag
 from datetime import datetime
+from pathlib import Path
 from rich import print
 from rich.rule import Rule
 from rich.style import Style
@@ -57,7 +58,7 @@ class NDGRClient:
     }
 
 
-    def __init__(self, nicolive_program_id: str, show_log: bool = False) -> None:
+    def __init__(self, nicolive_program_id: str, verbose: bool = False, console_output: bool = False, log_path: Path | None = None) -> None:
         """
         NDGRClient のコンストラクタ
         nicolive_program_id にニコニコ実況のチャンネル ID を渡したときは、
@@ -65,7 +66,9 @@ class NDGRClient:
 
         Args:
             nicolive_program_id (str): ニコニコ生放送の番組 ID (ex: lv345479988) or ニコニコ実況のチャンネル ID (ex: jk1, jk211)
-            show_log (bool, default=False): グラフィカルな動作ログを出力するかどうか
+            verbose (bool, default=False): 詳細な動作ログを出力するかどうか
+            console_output (bool, default=False): 動作ログをコンソールに出力するかどうか
+            log_path (Path | None, default=None): 動作ログをファイルに出力する場合のパス (show_log と併用可能)
         """
 
         if nicolive_program_id.startswith('jk'):
@@ -83,7 +86,9 @@ class NDGRClient:
             self.nicolive_program_id = nicolive_program_id
             self.jikkyo_id = None
 
-        self.show_log = show_log
+        self.verbose = verbose
+        self.show_log = console_output
+        self.log_path = log_path
 
         # httpx の非同期 HTTP クライアントのインスタンスを作成
         self.httpx_client = httpx.AsyncClient(
@@ -105,6 +110,28 @@ class NDGRClient:
             ## リダイレクトを追跡する
             follow_redirects = True,
         )
+
+
+    def print(self, *args: Any, verbose_log: bool = False, **kwargs: Any) -> None:
+        """
+        NDGRClient の動作ログをコンソールやファイルに出力する
+
+        Args:
+            verbose_log (bool, default=False): 詳細な動作ログかどうか (指定された場合、コンストラクタで verbose が指定された時のみ出力する)
+        """
+
+        # このログが詳細な動作ログで、かつ詳細な動作ログの出力が有効でない場合は何もしない
+        if verbose_log is True and self.verbose is False:
+            return
+
+        # 有効ならログをコンソールに出力する
+        if self.show_log is True:
+            print(*args, **kwargs)
+
+        # ログファイルのパスが指定されている場合は、ログをファイルにも出力
+        if self.log_path is not None:
+            with self.log_path.open('a') as f:
+                print(*args, **kwargs, file=f)
 
 
     @classmethod
@@ -201,12 +228,11 @@ class NDGRClient:
                 # すでに放送を終了した番組はストリーミングを開始できない
                 ## 厳密には NDGR の各 API に接続することはできるが、当然新規にコメントが降ってくることはなく、過去ログ参照のみ
                 raise ValueError(f'Program {self.nicolive_program_id} has already ended and cannot be streamed.')
-            if self.show_log:
-                print(f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})')
-                print(f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
-                      f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
-                      f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)')
-                print(Rule(characters='-', style=Style(color='#E33157')))
+            self.print(f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})')
+            self.print(f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
+                       f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
+                       f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)')
+            self.print(Rule(characters='-', style=Style(color='#E33157')))
             view_api_uri = await self.fetchNDGRViewURI(nicolive_program_info.webSocketUrl)
 
             # NDGR View API への初回アクセスかどうかを表すフラグ
@@ -261,10 +287,9 @@ class NDGRClient:
                     except KeyboardInterrupt:
                         raise
                     except Exception:
-                        if self.show_log:
-                            print('Error fetching program info:')
-                            print(traceback.format_exc())
-                            print(Rule(characters='-', style=Style(color='#E33157')))
+                        self.print('Error fetching program info:')
+                        self.print(traceback.format_exc())
+                        self.print(Rule(characters='-', style=Style(color='#E33157')))
 
             async def fetch_chunked_entries() -> None:
                 """
@@ -304,11 +329,10 @@ class NDGRClient:
                                     segment = chunked_entry.segment
                                     segment_from = segment.from_.seconds + (segment.from_.nanos / 1e9)
                                     segment_until = segment.until.seconds + (segment.until.nanos / 1e9)
-                                    if self.show_log:
-                                        print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] '
-                                              f'Segment From: {datetime.fromtimestamp(segment_from).strftime("%H:%M:%S")} / '
-                                              f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}')
-                                        print(Rule(characters='-', style=Style(color='#E33157')))
+                                    self.print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] '
+                                               f'Segment From: {datetime.fromtimestamp(segment_from).strftime("%H:%M:%S")} / '
+                                               f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}', verbose_log=True)
+                                    self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
 
                                     # 新しい ChunkedMessage 受信タスクを作成し、開始
                                     task = asyncio.create_task(fetch_chunked_message(segment))
@@ -324,10 +348,9 @@ class NDGRClient:
                         except KeyboardInterrupt:
                             raise
                         except Exception:
-                            if self.show_log:
-                                print('Error fetching chunked entries:')
-                                print(traceback.format_exc())
-                                print(Rule(characters='-', style=Style(color='#E33157')))
+                            self.print('Error fetching chunked entries:')
+                            self.print(traceback.format_exc())
+                            self.print(Rule(characters='-', style=Style(color='#E33157')))
                             retry_count += 1
                             if retry_count >= 3:
                                 raise  # 3回リトライしても失敗したら継続を諦めて例外を投げる
@@ -350,10 +373,9 @@ class NDGRClient:
                 except KeyboardInterrupt:
                     raise
                 except Exception:
-                    if self.show_log:
-                        print('Error fetching chunked messages:')
-                        print(traceback.format_exc())
-                        print(Rule(characters='-', style=Style(color='#E33157')))
+                    self.print('Error fetching chunked messages:')
+                    self.print(traceback.format_exc())
+                    self.print(Rule(characters='-', style=Style(color='#E33157')))
                 finally:
                     # 配信終了時刻を過ぎて ChunkedMessage 受信が完了したらアクティブリストから削除
                     active_segments.pop(segment.uri, None)
@@ -379,12 +401,11 @@ class NDGRClient:
                             result = cast(Literal['ENDED', 'RESTART'], task.result())
                             # ここで ENDED (処理終了) または RESTART (次の番組へ移行) を返した時点で
                             ## stream_comments_inner() での処理は終了する
-                            if self.show_log:
-                                if result == 'ENDED':
-                                    print('Program Ended. Stopping...')
-                                elif result == 'RESTART':
-                                    print('Program Ended. Switching to Next Program...')
-                                print(Rule(characters='-', style=Style(color='#E33157')))
+                            if result == 'ENDED':
+                                self.print('Program Ended. Stopping...')
+                            elif result == 'RESTART':
+                                self.print('Program Ended. Switching to Next Program...')
+                            self.print(Rule(characters='-', style=Style(color='#E33157')))
                             yield result
 
                         # コメントキューから受信したコメントを取得して yield で返す
@@ -431,12 +452,11 @@ class NDGRClient:
 
         # 視聴ページから NDGR View API の URI を取得する
         nicolive_program_info = await self.parseWatchPage()
-        if self.show_log:
-            print(f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})')
-            print(f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
-                  f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
-                  f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)')
-            print(Rule(characters='-', style=Style(color='#E33157')))
+        self.print(f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})')
+        self.print(f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
+                   f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
+                   f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)')
+        self.print(Rule(characters='-', style=Style(color='#E33157')))
         view_api_uri = await self.fetchNDGRViewURI(nicolive_program_info.webSocketUrl)
 
         # NDGR View API への初回アクセスかどうかを表すフラグ
@@ -512,9 +532,8 @@ class NDGRClient:
 
         # NDGR Backward API から過去のコメントを PackedSegment 型で取得
         while True:
-            if self.show_log:
-                print(f'Retrieving {backward_api_uri} ...')
-                print(Rule(characters='-', style=Style(color='#E33157')))
+            self.print(f'Retrieving {backward_api_uri} ...', verbose_log=True)
+            self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
             response = await self.httpx_client.get(backward_api_uri, timeout=10.0)
             response.raise_for_status()
             packed_segment = chat.PackedSegment()
@@ -539,9 +558,8 @@ class NDGRClient:
                 # 取り回しやすいように NDGRComment Pydantic モデルに変換
                 comment = self.convertToNDGRComment(chunked_message)
                 temp_comments.append(comment)
-                if self.show_log:
-                    print(str(comment))
-                    print(Rule(characters='-', style=Style(color='#E33157')))
+                self.print(str(comment), verbose_log=True)
+                self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
 
             # 現在の comments の前側に temp_comments の内容を連結
             comments = temp_comments + comments
@@ -724,10 +742,9 @@ class NDGRClient:
             api_name = 'NDGR View API'
         elif '/segment/' in uri:
             api_name = 'NDGR Segment API'
-        if self.show_log:
-            print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Fetching {api_name} ...')
-            print(uri)
-            print(Rule(characters='-', style=Style(color='#E33157')))
+        self.print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Fetching {api_name} ...', verbose_log=True)
+        self.print(uri, verbose_log=True)
+        self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
 
         max_retries = 5  # 5回までリトライ
         retry_delay = 3  # 3秒待ってリトライ
@@ -755,26 +772,23 @@ class NDGRClient:
                             yield protobuf
 
                 # Protobuf ストリームを最後まで読み切ったら、ループを抜ける
-                if self.show_log:
-                    print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Fetched {api_name}.')
-                    print(uri)
-                    print(Rule(characters='-', style=Style(color='#E33157')))
+                self.print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Fetched {api_name}.', verbose_log=True)
+                self.print(uri, verbose_log=True)
+                self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
                 break
 
             # HTTP 接続エラー発生時、しばらく待ってからリトライを試みる
             except (httpx.HTTPError, httpx.StreamError):
                 if attempt < max_retries - 1:
-                    if self.show_log:
-                        print(f'Error fetching {api_name}. Retrying in {retry_delay} seconds...')
-                        print(traceback.format_exc())
+                    self.print(f'Error fetching {api_name}. Retrying in {retry_delay} seconds...')
+                    self.print(traceback.format_exc())
                     await asyncio.sleep(retry_delay)
 
                 # 最後の試行でも失敗した場合、例外を再発生させる
                 else:
-                    if self.show_log:
-                        print(f'Error fetching {api_name}. Max retries reached.')
-                        print(traceback.format_exc())
-                        print(Rule(characters='-', style=Style(color='#E33157')))
+                    self.print(f'Error fetching {api_name}. Max retries reached.')
+                    self.print(traceback.format_exc())
+                    self.print(Rule(characters='-', style=Style(color='#E33157')))
                     raise
 
 

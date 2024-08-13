@@ -134,6 +134,52 @@ class NDGRClient:
                 print(*args, **kwargs, file=f)
 
 
+    async def login(self, mail: str | None = None, password: str | None = None, cookies: dict[str, str] | None = None) -> dict[str, str]:
+        """
+        ニコニコアカウントにログインするか、既存の Cookie を HTTP クライアントに設定する
+        基本初回ログイン時以外は一度取得した Cookie を使い回して無駄なログインセッションが作成されるのを防ぐべき
+        ログインが成功すると Cookie 辞書を返す
+
+        Args:
+            mail (str | None): ニコニコアカウントのメールアドレス
+            password (str | None): ニコニコアカウントのパスワード
+            cookies (dict[str, str] | None): 既存の Cookie 辞書
+
+        Returns:
+            dict[str, str]: 現在 HTTP クライアントにセットされている Cookie 辞書
+
+        Raises:
+            ValueError: mail と password の両方、または cookies のいずれかが指定されていない場合
+            httpx.HTTPStatusError: ログインリクエストが失敗した場合
+        """
+
+        if (mail is None or password is None) and cookies is None:
+            raise ValueError('Either both mail and password, or cookies must be provided.')
+
+        if cookies is not None:
+            # Cookie 辞書が指定された場合、HTTP クライアントに Cookie を設定
+            self.httpx_client.cookies.update(cookies)
+        else:
+            # メールアドレスとパスワードが指定された場合、ログイン処理を実行
+            ## この API にアクセスすると Cookie (user_session) が HTTP クライアントにセットされる
+            try:
+                response = await self.httpx_client.post('https://account.nicovideo.jp/api/v1/login', data={
+                    'mail': mail,
+                    'password': password,
+                })
+                response.raise_for_status()
+                self.print(f'Login successful. Niconico User ID: {response.headers["x-niconico-id"]}', verbose_log=True)
+                self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
+            except httpx.HTTPStatusError:
+                self.print('Login failed:')
+                self.print(traceback.format_exc())
+                self.print(Rule(characters='-', style=Style(color='#E33157')))
+                raise
+
+        # 現在 HTTP クライアントにセットされている Cookie を返す
+        return dict(self.httpx_client.cookies.items())
+
+
     @classmethod
     async def updateJikkyoChannelIDMap(cls) -> None:
         """
@@ -157,7 +203,7 @@ class NDGRClient:
 
         gallery = soup.find('div', id='gallery-1')
         if not gallery:
-            raise ValueError('Gallery not found')
+            raise ValueError('Gallery not found.')
 
         new_map = {}
         for item in cast(Tag, gallery).find_all('dl', class_='gallery-item'):
@@ -196,7 +242,7 @@ class NDGRClient:
                 new_map['jk211'] = live_id
 
         if len(new_map) != 10:
-            raise ValueError(f'Expected 10 channels, but found {len(new_map)}')
+            raise ValueError(f'Expected 10 channels, but found {len(new_map)}.')
 
         cls.JIKKYO_CHANNEL_ID_MAP = new_map
 

@@ -260,6 +260,11 @@ class NDGRClient:
                 assert 'onAirTime' in response_json['data']
                 assert 'beginAt' in response_json['data']['onAirTime']
                 assert 'endAt' in response_json['data']['onAirTime']
+                assert 'timeshift' in response_json['data']
+                assert 'enabled' in response_json['data']['timeshift']
+                # タイムシフト非公開の番組からはコメントを取得できないのでスキップ
+                if not response_json['data']['timeshift']['enabled']:
+                    continue
                 broadcast_periods.append({
                     'nicoliveProgramId': program_id,
                     'beginAt': datetime.fromisoformat(response_json['data']['onAirTime']['beginAt']),

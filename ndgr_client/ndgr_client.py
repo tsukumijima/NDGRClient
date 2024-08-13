@@ -9,13 +9,14 @@ import re
 import traceback
 import websockets
 from bs4 import BeautifulSoup, Tag
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from rich import print
 from rich.rule import Rule
 from rich.style import Style
-from typing import Any, AsyncGenerator, cast, Literal, Type, TypeVar
+from typing import Any, AsyncGenerator, cast, Literal, Type, TypedDict, TypeVar
 
+from ndgr_client import __version__
 from ndgr_client.protobuf_stream_reader import ProtobufStreamReader
 from ndgr_client.proto.dwango.nicolive.chat.data import atoms_pb2 as atoms
 from ndgr_client.proto.dwango.nicolive.chat.service.edge import payload_pb2 as chat
@@ -39,9 +40,21 @@ class NDGRClient:
     ・NDGR Backward API : https://mpn.live.nicovideo.jp/data/backward/v4/...
     """
 
-    # User-Agent と Sec-CH-UA を Chrome 126 に偽装
-    USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
-    SEC_CH_UA = '"Chromium";v="126", "Google Chrome";v="126", "Not-A.Brand";v="99"'
+    # HTTP ヘッダー を Chrome 126 に偽装
+    HTTP_HEADERS = {
+        'accept': '*/*',
+        'accept-encoding': 'gzip, deflate, br',
+        'accept-language': 'ja',
+        'origin': 'https://live.nicovideo.jp',
+        'referer': 'https://live.nicovideo.jp/',
+        'sec-ch-ua': '"Chromium";v="126", "Google Chrome";v="126", "Not-A.Brand";v="99"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-site',
+        'user-agent': f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 NDGRClient/{__version__}',
+    }
 
     # 旧来の実況チャンネル ID とニコニコチャンネル ID のマッピング
     JIKKYO_CHANNEL_ID_MAP: dict[str, str] = {
@@ -91,47 +104,7 @@ class NDGRClient:
         self.log_path = log_path
 
         # httpx の非同期 HTTP クライアントのインスタンスを作成
-        self.httpx_client = httpx.AsyncClient(
-            ## リクエストヘッダーを設定 (Chrome に偽装)
-            headers = {
-                'accept': '*/*',
-                'accept-encoding': 'gzip, deflate, br',
-                'accept-language': 'ja',
-                'origin': 'https://live.nicovideo.jp',
-                'referer': 'https://live.nicovideo.jp/',
-                'sec-ch-ua': self.SEC_CH_UA,
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"Windows"',
-                'sec-fetch-dest': 'empty',
-                'sec-fetch-mode': 'cors',
-                'sec-fetch-site': 'same-site',
-                'user-agent': self.USER_AGENT,
-            },
-            ## リダイレクトを追跡する
-            follow_redirects = True,
-        )
-
-
-    def print(self, *args: Any, verbose_log: bool = False, **kwargs: Any) -> None:
-        """
-        NDGRClient の動作ログをコンソールやファイルに出力する
-
-        Args:
-            verbose_log (bool, default=False): 詳細な動作ログかどうか (指定された場合、コンストラクタで verbose が指定された時のみ出力する)
-        """
-
-        # このログが詳細な動作ログで、かつ詳細な動作ログの出力が有効でない場合は何もしない
-        if verbose_log is True and self.verbose is False:
-            return
-
-        # 有効ならログをコンソールに出力する
-        if self.show_log is True:
-            print(*args, **kwargs)
-
-        # ログファイルのパスが指定されている場合は、ログをファイルにも出力
-        if self.log_path is not None:
-            with self.log_path.open('a') as f:
-                print(*args, **kwargs, file=f)
+        self.httpx_client = httpx.AsyncClient(headers=self.HTTP_HEADERS, follow_redirects=True)
 
 
     async def login(self, mail: str | None = None, password: str | None = None, cookies: dict[str, str] | None = None) -> dict[str, str]:
@@ -181,6 +154,104 @@ class NDGRClient:
 
 
     @classmethod
+    async def getProgramIDsOnDate(cls, jikkyo_channel_id: str, date: date) -> list[str]:
+        """
+        指定した日付に少なくとも一部が放送されている/放送されたニコニコ実況番組の ID を取得する
+
+        Args:
+            jikkyo_channel_id (str): ニコニコ実況チャンネル ID
+            date (date): ニコニコ実況番組を取得する日付
+
+        Returns:
+            list[str]: 指定した日付に少なくとも一部が放送されている/放送されたニコニコ実況番組の ID のリスト
+
+        Raises:
+            ValueError: ニコニコ実況のチャンネル ID が指定されていない場合
+            httpx.HTTPStatusError: ニコニコ API へのリクエストに失敗した場合
+        """
+
+        class NicoLiveProgramBroadcastPeriod(TypedDict):
+            """
+            https://api.cas.nicovideo.jp/v1/services/live/programs/(lv ID) から取得できるニコニコ生放送番組の放送期間の情報
+            """
+            nicoliveProgramId: str
+            beginAt: datetime
+            endAt: datetime
+
+        # 2024/08/22 のニコニコチャンネル復旧までの繋ぎとして運用された暫定版ニコニコ実況の既知の番組 ID マップ
+        provisional_jikkyo_program_id_map = {
+            'jk1': ['lv345514103'],
+            'jk2': ['lv345514108'],
+            'jk4': ['lv345514118'],
+            'jk5': ['lv345514126'],
+            'jk6': ['lv345514132'],
+            'jk7': ['lv345514139'],
+            'jk8': ['lv345514141'],
+            'jk9': ['lv345514145'],
+            'jk101': ['lv345514113'],
+            'jk211': ['lv345514147'],
+        }
+
+        # クラスメソッドから self.httpx_client にはアクセスできないため、新しい httpx.AsyncClient を作成している
+        async with httpx.AsyncClient(headers=cls.HTTP_HEADERS, follow_redirects=True) as client:
+
+            # まずは候補となるニコニコ生放送番組 ID を収集
+            candidate_nicolive_program_ids: set[str] = set()
+            candidate_nicolive_program_ids.update(provisional_jikkyo_program_id_map.get(jikkyo_channel_id, []))
+            ## 放送中番組の ID を取得
+            response = await client.get(f'https://ch.nicovideo.jp/{jikkyo_channel_id}/live')
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, 'html.parser')
+            live_now = soup.find('div', id='live_now')
+            if live_now:
+                live_link = live_now.find('a', href=lambda href: bool(href and href.startswith('https://live.nicovideo.jp/watch/lv')))  # type: ignore
+                if live_link:
+                    live_id = cast(str, cast(Tag, live_link).get('href')).split('/')[-1]
+                    candidate_nicolive_program_ids.add(live_id)
+            ## 過去番組の ID をスクレイピングで取得
+            for page in range(1, 3):  # 1 ページ目と 2 ページ目を取得
+                response = await client.get(f'https://sp.ch.nicovideo.jp/api/past_lives/?page={page}&channel_id={jikkyo_channel_id}')
+                if response.status_code != 200:
+                    # 当面 503 はエラーにせず無視する (08/22 のニコニコチャンネル復旧までの暫定措置)
+                    if response.status_code == 503:
+                        continue
+                    if page == 1:
+                        # 1 ページは必ず取得できるはずなので、取得できなかった場合はニコ生側で何らかの問題が発生している
+                        response.raise_for_status()
+                    else:
+                        # 2 ページ目が取得できなかった場合はページを分けるほど過去の番組情報がないと考えられるため、ループを抜ける
+                        break
+                soup = BeautifulSoup(response.content, 'html.parser')
+                for a_tag in soup.find_all('a', href=True):
+                    href = a_tag['href']
+                    if 'https://live.nicovideo.jp/watch/' in href:
+                        candidate_nicolive_program_ids.add(href.split('/')[-1])
+
+            # 候補となるニコニコ生放送番組の放送期間を取得
+            broadcast_periods: list[NicoLiveProgramBroadcastPeriod] = []
+            for program_id in candidate_nicolive_program_ids:
+                response = await client.get(f'https://api.cas.nicovideo.jp/v1/services/live/programs/{program_id}')
+                response.raise_for_status()
+                response_json = response.json()
+                assert 'data' in response_json
+                assert 'onAirTime' in response_json['data']
+                assert 'beginAt' in response_json['data']['onAirTime']
+                assert 'endAt' in response_json['data']['onAirTime']
+                broadcast_periods.append({
+                    'nicoliveProgramId': program_id,
+                    'beginAt': datetime.fromisoformat(response_json['data']['onAirTime']['beginAt']),
+                    'endAt': datetime.fromisoformat(response_json['data']['onAirTime']['endAt']),
+                })
+
+        # 指定された日付に放送されている番組をフィルタリングし、その ID をリストで返す
+        broadcast_periods = [
+            period for period in broadcast_periods
+            if period['beginAt'].date() <= date <= period['endAt'].date()
+        ]
+        return [period['nicoliveProgramId'] for period in broadcast_periods]
+
+
+    @classmethod
     async def updateJikkyoChannelIDMap(cls) -> None:
         """
         https://originalnews.nico/464285 から最新の実況チャンネル ID とニコニコチャンネル ID のマッピングを取得し、
@@ -189,7 +260,7 @@ class NDGRClient:
         """
 
         # クラスメソッドから self.httpx_client にはアクセスできないため、新しい httpx.AsyncClient を作成している
-        async with httpx.AsyncClient(headers={'user-agent': cls.USER_AGENT}) as client:
+        async with httpx.AsyncClient(headers=cls.HTTP_HEADERS, follow_redirects=True) as client:
 
             # スクレイピングを開始する前に https://jk.nicovideo.jp/ にリクエストしてのステータスコードを確認
             ## 暫定措置中は 302 リダイレクトが行われているので、302 リダイレクトが行われなくなっていたら本復旧したと判断して以降の処理を行わない
@@ -629,10 +700,10 @@ class NDGRClient:
 
     async def parseWatchPage(self) -> NicoLiveProgramInfo:
         """
-        視聴ページを解析し、埋め込みデータを取得する
+        ニコニコ生放送の視聴ページを解析し、ニコニコ生放送の番組情報を取得する
 
         Returns:
-            NicoLiveProgramInfo: 解析された埋め込みデータ
+            NicoLiveProgramInfo: 解析されたニコニコ生放送の番組情報
 
         Raises:
             httpx.HTTPStatusError: HTTP リクエストが失敗した場合
@@ -693,7 +764,7 @@ class NDGRClient:
             raise ValueError('webSocketUrl is empty.')
 
         # ニコニコ生放送の視聴ページから取得した webSocketUrl に接続
-        async with websockets.connect(webSocketUrl, user_agent_header=NDGRClient.USER_AGENT) as websocket:
+        async with websockets.connect(webSocketUrl, user_agent_header=self.HTTP_HEADERS['user-agent']) as websocket:
 
             # 接続が確立したら、視聴開始リクエストを送る
             await websocket.send(json.dumps({
@@ -840,6 +911,28 @@ class NDGRClient:
                     self.print(traceback.format_exc())
                     self.print(Rule(characters='-', style=Style(color='#E33157')))
                     raise
+
+
+    def print(self, *args: Any, verbose_log: bool = False, **kwargs: Any) -> None:
+        """
+        NDGRClient の動作ログをコンソールやファイルに出力する
+
+        Args:
+            verbose_log (bool, default=False): 詳細な動作ログかどうか (指定された場合、コンストラクタで verbose が指定された時のみ出力する)
+        """
+
+        # このログが詳細な動作ログで、かつ詳細な動作ログの出力が有効でない場合は何もしない
+        if verbose_log is True and self.verbose is False:
+            return
+
+        # 有効ならログをコンソールに出力する
+        if self.show_log is True:
+            print(*args, **kwargs)
+
+        # ログファイルのパスが指定されている場合は、ログをファイルにも出力
+        if self.log_path is not None:
+            with self.log_path.open('a') as f:
+                print(*args, **kwargs, file=f)
 
 
     @staticmethod

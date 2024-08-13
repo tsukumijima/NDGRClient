@@ -1058,12 +1058,12 @@ class NDGRClient:
 
 
     @staticmethod
-    def convertToXMLString(comments: list[NDGRComment]) -> str:
+    def convertToXMLString(comments: list[NDGRComment] | list[XMLCompatibleComment]) -> str:
         """
-        NDGRComment のリストをヘッダーなし XML 文字列 (.nicojk) に変換する
+        コメントリストをコメント投稿時刻順にソートしたヘッダーなし XML 文字列 (.nicojk) に変換する
 
         Args:
-            comments (list[NDGRComment]): NDGRComment のリスト
+            comments (list[NDGRComment] | list[XMLCompatibleComment]): NDGRComment または XMLCompatibleComment のリスト
 
         Returns:
             str: XML 文字列
@@ -1077,15 +1077,18 @@ class NDGRClient:
         # XML のエレメントツリー
         elem_tree = ET.Element('packet')
 
-        # コメント投稿時刻昇順でソート
-        comments.sort(key=lambda x: x.at)
+        # コメントを XMLCompatibleComment に変換し、コメント投稿時刻昇順でソート
+        xml_compatible_comments = [
+            NDGRClient.convertToXMLCompatibleComment(comment) if isinstance(comment, NDGRComment) else comment
+            for comment in comments
+        ]
+        xml_compatible_comments.sort(key=lambda x: x.date_with_usec)
 
         # コメントごとに
-        for comment in comments:
+        for xml_compatible_comment in xml_compatible_comments:
 
-            # コメントを XMLCompatibleComment に変換したあと、さらに辞書に変換
-            comment = NDGRClient.convertToXMLCompatibleComment(comment)
-            comment_dict = comment.model_dump()
+            # コメントをさらに辞書に変換
+            comment_dict = xml_compatible_comment.model_dump()
 
             # コメント本文を取得して消す（ XML ではタグ内の値として入るため）
             chat_content = comment_dict['content']

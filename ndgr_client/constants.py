@@ -98,12 +98,16 @@ class XMLCompatibleComment(BaseModel):
     thread: str
     # コメント番号（コメ番）
     no: int
-    # スレッド ID から起算したコメントの再生位置（1/100秒）
+    # スレッド ID から起算したコメントの再生位置 (1/100秒単位)
     vpos: int
-    # コメント投稿時間の UNIX タイムスタンプ
+    # コメント投稿時間の UNIX タイムスタンプ (秒単位の整数)
     date: int
-    # コメント投稿時間の小数点以下の時間 (6桁)
+    # コメント投稿時間の UNIX タイムスタンプの小数点以下の値 (マイクロ秒単位の整数)
     date_usec: int
+    # date と date_usec を合算したコメント投稿時間の UNIX タイムスタンプ (浮動小数点秒単位)
+    @property
+    def date_with_usec(self) -> float:
+        return self.date + (self.date_usec / 1000000)
     # ユーザー ID（コマンドに 184 が指定されている場合は匿名化される）
     user_id: str
     # コメントのコマンド（184, red naka big など）

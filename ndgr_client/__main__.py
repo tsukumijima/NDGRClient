@@ -16,7 +16,7 @@ app = AsyncTyper(help='NDGRClient: Nicolive NDGR Message Server Client Library')
 @app.command(help='Stream comments from NDGR server.')
 async def stream(
     nicolive_program_id: str = typer.Argument(help='Nicolive program ID (ex: jk1, jk9, jk211 / lv345479988)'),
-    verbose: bool = typer.Option(default=False, help='Verbose output')
+    verbose: bool = typer.Option(default=False, help='Verbose output'),
 ):
     print(Rule(characters='-', style=Style(color='#E33157')))
 
@@ -36,7 +36,7 @@ async def stream(
 async def download(
     nicolive_program_id: str = typer.Argument(help='Nicolive program ID (ex: jk1, jk9, jk211 / lv345479988) or "all"'),
     output_dir: Path = typer.Option(default=Path('.'), help='Output directory'),
-    verbose: bool = typer.Option(default=False, help='Verbose output')
+    verbose: bool = typer.Option(default=False, help='Verbose output'),
 ):
     print(Rule(characters='=', style=Style(color='#E33157')))
 

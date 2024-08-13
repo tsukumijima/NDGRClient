@@ -61,7 +61,7 @@ async def download(
         with open(output_dir / f'{jid}.nicojk', mode='w', encoding='utf-8') as f:
             f.write(NDGRClient.convertToXMLString(comments))
         print(f'Total comments for {jid}: {comment_counts[jid]}')
-        print(f'Saved to {output_dir / f"{jid}.nicojk"}')
+        print(f'Saved to {output_dir / f"{jid}.nicojk"}.')
         print(Rule(characters='=', style=Style(color='#E33157')))
 
     if nicolive_program_id == 'all':

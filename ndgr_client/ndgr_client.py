@@ -107,7 +107,7 @@ class NDGRClient:
         self.httpx_client = httpx.AsyncClient(headers=self.HTTP_HEADERS, follow_redirects=True)
 
 
-    async def login(self, mail: str | None = None, password: str | None = None, cookies: dict[str, str] | None = None) -> dict[str, str]:
+    async def login(self, mail: str | None = None, password: str | None = None, cookies: dict[str, str] | None = None) -> dict[str, str] | None:
         """
         ニコニコアカウントにログインするか、既存の Cookie を HTTP クライアントに設定する
         基本初回ログイン時以外は一度取得した Cookie を使い回して無駄なログインセッションが作成されるのを防ぐべき
@@ -119,7 +119,7 @@ class NDGRClient:
             cookies (dict[str, str] | None): 既存の Cookie 辞書
 
         Returns:
-            dict[str, str]: 現在 HTTP クライアントにセットされている Cookie 辞書
+            dict[str, str] | None: 現在 HTTP クライアントにセットされている Cookie 辞書 (ログインが失敗した場合は None を返す)
 
         Raises:
             ValueError: mail と password の両方、または cookies のいずれかが指定されていない場合
@@ -129,22 +129,32 @@ class NDGRClient:
         if (mail is None or password is None) and cookies is None:
             raise ValueError('Either both mail and password, or cookies must be provided.')
 
+        # Cookie 辞書が指定されたとき、HTTP クライアントに Cookie を設定
         if cookies is not None:
-            # Cookie 辞書が指定された場合、HTTP クライアントに Cookie を設定
             self.httpx_client.cookies.update(cookies)
+
+            # https://account.nicovideo.jp/login にアクセスして x-niconico-id ヘッダーがセットされているか確認
+            response = await self.httpx_client.get('https://account.nicovideo.jp/login')
+            response.raise_for_status()
+            if 'x-niconico-id' not in response.headers:
+                return None
+
+        # メールアドレスとパスワードが指定されたとき、ログイン処理を実行
         else:
-            # メールアドレスとパスワードが指定された場合、ログイン処理を実行
-            ## この API にアクセスすると Cookie (user_session) が HTTP クライアントにセットされる
             try:
+                # この API にアクセスすると Cookie (user_session) が HTTP クライアントにセットされる
                 response = await self.httpx_client.post('https://account.nicovideo.jp/api/v1/login', data={
                     'mail': mail,
                     'password': password,
                 })
                 response.raise_for_status()
+                # x-niconico-id ヘッダーがセットされていない場合はログインに失敗している
+                if 'x-niconico-id' not in response.headers:
+                    return None
                 self.print(f'Login successful. Niconico User ID: {response.headers["x-niconico-id"]}', verbose_log=True)
                 self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
             except httpx.HTTPStatusError:
-                self.print('Login failed:')
+                self.print('Error during login:')
                 self.print(traceback.format_exc())
                 self.print(Rule(characters='-', style=Style(color='#E33157')))
                 raise
@@ -203,14 +213,16 @@ class NDGRClient:
             candidate_nicolive_program_ids.update(provisional_jikkyo_program_id_map.get(jikkyo_channel_id, []))
             ## 放送中番組の ID を取得
             response = await client.get(f'https://ch.nicovideo.jp/{jikkyo_channel_id}/live')
-            response.raise_for_status()
-            soup = BeautifulSoup(response.content, 'html.parser')
-            live_now = soup.find('div', id='live_now')
-            if live_now:
-                live_link = live_now.find('a', href=lambda href: bool(href and href.startswith('https://live.nicovideo.jp/watch/lv')))  # type: ignore
-                if live_link:
-                    live_id = cast(str, cast(Tag, live_link).get('href')).split('/')[-1]
-                    candidate_nicolive_program_ids.add(live_id)
+            # 当面 503 はエラーにせず無視する (08/22 のニコニコチャンネル復旧までの暫定措置)
+            if response.status_code != 503:
+                response.raise_for_status()
+                soup = BeautifulSoup(response.content, 'html.parser')
+                live_now = soup.find('div', id='live_now')
+                if live_now:
+                    live_link = live_now.find('a', href=lambda href: bool(href and href.startswith('https://live.nicovideo.jp/watch/lv')))  # type: ignore
+                    if live_link:
+                        live_id = cast(str, cast(Tag, live_link).get('href')).split('/')[-1]
+                        candidate_nicolive_program_ids.add(live_id)
             ## 過去番組の ID をスクレイピングで取得
             for page in range(1, 3):  # 1 ページ目と 2 ページ目を取得
                 response = await client.get(f'https://sp.ch.nicovideo.jp/api/past_lives/?page={page}&channel_id={jikkyo_channel_id}')

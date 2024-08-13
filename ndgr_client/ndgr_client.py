@@ -173,7 +173,7 @@ class NDGRClient:
             date (date): ニコニコ実況番組を取得する日付
 
         Returns:
-            list[str]: 指定した日付に少なくとも一部が放送されている/放送されたニコニコ実況番組の ID のリスト
+            list[str]: 指定した日付に少なくとも一部が放送されている/放送されたニコニコ実況番組の ID のリスト (放送開始日時昇順)
 
         Raises:
             ValueError: ニコニコ実況のチャンネル ID が指定されていない場合
@@ -263,6 +263,9 @@ class NDGRClient:
             period for period in broadcast_periods
             if period['beginAt'].date() <= date <= period['endAt'].date()
         ]
+
+        # ID を放送開始日時が早い順に並べ替えてから返す
+        broadcast_periods.sort(key=lambda x: x['beginAt'])
         return [period['nicoliveProgramId'] for period in broadcast_periods]
 
 

@@ -107,6 +107,14 @@ class NDGRClient:
         self.httpx_client = httpx.AsyncClient(headers=self.HTTP_HEADERS, follow_redirects=True)
 
 
+    @property
+    def is_logged_in(self) -> bool:
+        """
+        ニコニコアカウントがログイン済みかどうかを返す
+        """
+        return 'user_session' in self.httpx_client.cookies
+
+
     async def login(self, mail: str | None = None, password: str | None = None, cookies: dict[str, str] | None = None) -> dict[str, str] | None:
         """
         ニコニコアカウントにログインするか、既存の Cookie を HTTP クライアントに設定する
@@ -134,7 +142,7 @@ class NDGRClient:
             self.httpx_client.cookies.update(cookies)
 
             # https://account.nicovideo.jp/login にアクセスして x-niconico-id ヘッダーがセットされているか確認
-            response = await self.httpx_client.get('https://account.nicovideo.jp/login')
+            response = await self.httpx_client.get('https://account.nicovideo.jp/login', timeout=10.0)
             response.raise_for_status()
             if 'x-niconico-id' not in response.headers:
                 return None
@@ -146,7 +154,7 @@ class NDGRClient:
                 response = await self.httpx_client.post('https://account.nicovideo.jp/api/v1/login', data={
                     'mail': mail,
                     'password': password,
-                })
+                }, timeout=10.0)
                 response.raise_for_status()
                 # x-niconico-id ヘッダーがセットされていない場合はログインに失敗している
                 if 'x-niconico-id' not in response.headers:
@@ -358,7 +366,7 @@ class NDGRClient:
             """
 
             # 視聴ページから NDGR View API の URI を取得する
-            nicolive_program_info = await self.parseWatchPage()
+            nicolive_program_info = await self.fetchNicoLiveProgramInfo()
             if nicolive_program_info.status == 'ENDED':
                 # すでに放送を終了した番組はストリーミングを開始できない
                 ## 厳密には NDGR の各 API に接続することはできるが、当然新規にコメントが降ってくることはなく、過去ログ参照のみ
@@ -396,7 +404,7 @@ class NDGRClient:
                     await asyncio.sleep(60 - datetime.now().second % 60 + 5)
                     try:
                         # 視聴ページから self.nicolive_program_id に対応する現在の番組ステータスを取得する
-                        new_program_info = await self.parseWatchPage()
+                        new_program_info = await self.fetchNicoLiveProgramInfo()
 
                         # 受信中番組がニコニコ実況番組ではなく、かつ番組の放送が終了した
                         if self.jikkyo_id is None and new_program_info.status == 'ENDED':
@@ -586,7 +594,7 @@ class NDGRClient:
         """
 
         # 視聴ページから NDGR View API の URI を取得する
-        nicolive_program_info = await self.parseWatchPage()
+        nicolive_program_info = await self.fetchNicoLiveProgramInfo()
         self.print(f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})')
         self.print(f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
                    f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
@@ -716,7 +724,7 @@ class NDGRClient:
         return comments
 
 
-    async def parseWatchPage(self) -> NicoLiveProgramInfo:
+    async def fetchNicoLiveProgramInfo(self) -> NicoLiveProgramInfo:
         """
         ニコニコ生放送の視聴ページを解析し、ニコニコ生放送の番組情報を取得する
 
@@ -725,14 +733,15 @@ class NDGRClient:
 
         Raises:
             httpx.HTTPStatusError: HTTP リクエストが失敗した場合
+            ValueError: タイムシフト視聴を開始できない場合
             AssertionError: 解析に失敗した場合
         """
 
         watch_page_url = f'https://live.nicovideo.jp/watch/{self.nicolive_program_id}'
-        response = await self.httpx_client.get(watch_page_url, timeout=10.0)
-        response.raise_for_status()
+        reserve_response = await self.httpx_client.get(watch_page_url, timeout=10.0)
+        reserve_response.raise_for_status()
 
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(reserve_response.text, 'html.parser')
         embedded_data_elm = soup.find(id='embedded-data')
         assert isinstance(embedded_data_elm, Tag)
         props = embedded_data_elm.get('data-props')
@@ -755,6 +764,34 @@ class NDGRClient:
             scheduledEndTime = embedded_data['program']['scheduledEndTime'],
             webSocketUrl = embedded_data['site']['relive']['webSocketUrl'],
         )
+
+        # この時点で status が ENDED (放送終了済み) かつ websocketUrl が空文字列の場合、
+        # まだタイムシフトが有効であればタイムシフト予約 + 視聴開始を行うことで webSocketUrl が取得できるようになる
+        ## なお、放送終了済みの段階でタイムシフト視聴を開始するにはプレミアム会員である必要がある
+        ## タイムシフト視聴の開始はログイン中でないとできないため、ログイン中のみ実行する
+        if program_info.status == 'ENDED' and program_info.webSocketUrl == '' and self.is_logged_in:
+
+            # タイムシフト予約を実行
+            api_url = f'https://live2.nicovideo.jp/api/v2/programs/{self.nicolive_program_id}/timeshift/reservation'
+            reserve_response = await self.httpx_client.post(api_url, headers={'x-frontend-id': '9'}, timeout=10.0)
+            if reserve_response.status_code != 200:
+                raise ValueError('Failed to reserve timeshift. Are you premium member?')
+
+            # タイムシフト視聴を開始
+            ## この API の実行後、ニコニコ生放送の視聴ページから webSocketUrl が取得できるようになる
+            start_watching_response = await self.httpx_client.patch(api_url, headers={'x-frontend-id': '9'}, timeout=10.0)
+            if start_watching_response.status_code != 200:
+                raise ValueError('Failed to start timeshift watching. Are you premium member?')
+
+            # 再度ニコニコ生放送の視聴ページから webSocketUrl を取得
+            program_info = await self.fetchNicoLiveProgramInfo()
+            if program_info.webSocketUrl == '':
+                raise ValueError('Failed to get webSocketUrl after timeshift reservation and start watching.')
+            self.print('Timeshift watching has started.', verbose_log=True)
+
+        # 上記条件以外で webSocketUrl が空文字列の場合は例外を送出
+        elif program_info.webSocketUrl == '':
+            raise ValueError('Failed to get webSocketUrl.')
 
         return program_info
 

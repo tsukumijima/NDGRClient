@@ -1083,7 +1083,9 @@ class NDGRClient:
 
         # XMLCompatibleComment オブジェクトを生成
         xml_compatible_comment = XMLCompatibleComment(
-            thread = str(comment.live_id),
+            # lv 付きの生放送番組 ID をスレッド ID として設定
+            ## NDGR メッセージサーバーには「スレッド」と一対一で対応する概念は存在しない
+            thread = f'lv{comment.live_id}',
             no = comment.no,
             vpos = comment.vpos,
             date = int(comment.at.timestamp()),

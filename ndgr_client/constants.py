@@ -37,11 +37,11 @@ class NDGRComment(BaseModel):
     NDGR メッセージサーバーから返される Protobuf 形式のコメントデータのうち、有用そうな情報
     フィールド名は基本的に Protobuf の各値のキー名と同一
     """
-    # コメント ID (?) / ex: "EhgKEgmBfWBX18SQARFaOaNDSRHkkhCy-h0"
+    # コメント ID / ex: "EhgKEgmBfWBX18SQARFaOaNDSRHkkhCy-h0"
     id: str
     # コメント日時
     at: datetime
-    # 生放送 ID (?) / ex: 345479473
+    # 生放送の番組 ID (数値) / ex: 345479473
     live_id: int
     # 生のユーザー ID
     ## 184 コメントでは 0 (未設定) になる

@@ -9,6 +9,7 @@ import re
 import traceback
 import websockets
 from bs4 import BeautifulSoup, Tag
+from collections.abc import Sequence
 from datetime import date, datetime
 from pathlib import Path
 from rich import print
@@ -274,7 +275,7 @@ class NDGRClient:
                     'endAt': datetime.fromisoformat(response_json['data']['onAirTime']['endAt']),
                 })
 
-        # 指定された日付に放送されている番組をフィルタリングし、その ID をリストで返す
+        # 指定された日付に放送されている番組をフィルタリング
         broadcast_periods = [
             period for period in broadcast_periods
             if period['beginAt'].date() <= date <= period['endAt'].date()
@@ -1105,12 +1106,12 @@ class NDGRClient:
 
 
     @staticmethod
-    def convertToXMLString(comments: list[NDGRComment] | list[XMLCompatibleComment]) -> str:
+    def convertToXMLString(comments: Sequence[NDGRComment | XMLCompatibleComment]) -> str:
         """
-        コメントリストをコメント投稿時刻順にソートしたヘッダーなし XML 文字列 (.nicojk) に変換する
+        コメントリストをコメント投稿時刻順にソートしたヘッダーなし XML 文字列 (.nicojk 形式) に変換する
 
         Args:
-            comments (list[NDGRComment] | list[XMLCompatibleComment]): NDGRComment または XMLCompatibleComment のリスト
+            comments (Sequence[NDGRComment | XMLCompatibleComment]): NDGRComment または XMLCompatibleComment のリスト
 
         Returns:
             str: XML 文字列

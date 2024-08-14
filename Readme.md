@@ -7,8 +7,11 @@
 
 ## About
 
-[ニコニコ生放送](https://live.nicovideo.jp/) で運用されている NDGR メッセージサーバーのクライアントライブラリと、ライブラリを活用したコマンドラインツールです。  
+2024/08/05 から [ニコニコ生放送](https://live.nicovideo.jp/) で運用されている NDGR メッセージサーバーのクライアントライブラリと、ライブラリを活用したコマンドラインツールです。  
 主に [ニコニコ実況](https://jk.nicovideo.jp/) のコメントを取得する用途での利用を想定しています。
+
+> [!TIP]
+> このライブラリは、[JKCommentCrawler (ニコニコ実況の過去ログ収集ツール)](https://github.com/tsukumijima/JKCommentCrawler) において、NDGR メッセージサーバーからの過去ログ取得処理に活用されています。
 
 ## NDGR メッセージサーバーとは？
 
@@ -84,6 +87,7 @@ pip install git+https://github.com/tsukumijima/NDGRClient
 
 ## License
 
+> [!NOTE]
 > [proto/](/proto/) 以下の .proto ファイルは、[n-air-app/nicolive-comment-protobuf](https://github.com/n-air-app/nicolive-comment-protobuf) からインポートしたものです。
 
 [MIT License](License.txt)

@@ -6,8 +6,7 @@ from rich import print
 from rich.rule import Rule
 from rich.style import Style
 
-from ndgr_client import __version__
-from ndgr_client.ndgr_client import NDGRClient
+from ndgr_client import NDGRClient, __version__
 from ndgr_client.utils import AsyncTyper
 
 

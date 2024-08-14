@@ -122,5 +122,5 @@ class XMLCompatibleComment(BaseModel):
     def __str__(self) -> str:
         return (
             f'[{datetime.fromtimestamp(self.date_with_usec).strftime("%Y/%m/%d %H:%M:%S.%f")}][No:{self.no}] [white]{self.content}[/white]\n'
-            f'[grey70]User: {self.user_id} | Command: {self.mail}[/grey70]'
+            f'[grey70]User: {self.user_id} | Command: {self.mail.replace("184", "").strip()}[/grey70]'
         )

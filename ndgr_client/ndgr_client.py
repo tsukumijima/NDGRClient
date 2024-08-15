@@ -798,9 +798,8 @@ class NDGRClient:
                 raise ValueError('Failed to get webSocketUrl after timeshift reservation and start watching.')
             self.print('Timeshift watching has started.', verbose_log=True)
 
-        # 上記条件以外で webSocketUrl が空文字列の場合は例外を送出
-        elif program_info.webSocketUrl == '':
-            raise ValueError('Failed to get webSocketUrl.')
+        # 上記条件以外で webSocketUrl が空文字列の場合は例外を送出…すると streamComments() での再接続処理に問題が出るため、行わない
+        # エラー処理は各自で行う必要がある
 
         return program_info
 

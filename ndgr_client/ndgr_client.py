@@ -783,14 +783,15 @@ class NDGRClient:
             # タイムシフト予約を実行
             api_url = f'https://live2.nicovideo.jp/api/v2/programs/{self.nicolive_program_id}/timeshift/reservation'
             reserve_response = await self.httpx_client.post(api_url, headers={'x-frontend-id': '9'}, timeout=15.0)
-            if reserve_response.status_code != 200:
-                raise ValueError('Failed to reserve timeshift. Are you premium member?')
+            ## meta.errorCode が "DUPLICATED" の場合は既にタイムシフト予約済みなので無視する
+            if reserve_response.status_code != 200 and reserve_response.json().get('meta', {}).get('errorCode') != 'DUPLICATED':
+                raise ValueError(f'Failed to reserve timeshift. (HTTP Error {reserve_response.status_code}) Are you premium member?')
 
             # タイムシフト視聴を開始
             ## この API の実行後、ニコニコ生放送の視聴ページから webSocketUrl が取得できるようになる
             start_watching_response = await self.httpx_client.patch(api_url, headers={'x-frontend-id': '9'}, timeout=15.0)
             if start_watching_response.status_code != 200:
-                raise ValueError('Failed to start timeshift watching. Are you premium member?')
+                raise ValueError(f'Failed to start timeshift watching. (HTTP Error {start_watching_response.status_code}) Are you premium member?')
 
             # 再度ニコニコ生放送の視聴ページから webSocketUrl を取得
             program_info = await self.fetchNicoLiveProgramInfo()

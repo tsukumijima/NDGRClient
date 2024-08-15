@@ -54,7 +54,7 @@ class NDGRClient:
         'sec-fetch-dest': 'empty',
         'sec-fetch-mode': 'cors',
         'sec-fetch-site': 'same-site',
-        'user-agent': f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 NDGRClient/{__version__}',
+        'user-agent': f'Mozilla/5.0 (Windows NT 15.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 NDGRClient/{__version__}',
     }
 
     # 旧来の実況チャンネル ID とニコニコチャンネル ID のマッピング
@@ -143,7 +143,7 @@ class NDGRClient:
             self.httpx_client.cookies.update(cookies)
 
             # https://account.nicovideo.jp/login にアクセスして x-niconico-id ヘッダーがセットされているか確認
-            response = await self.httpx_client.get('https://account.nicovideo.jp/login', timeout=10.0)
+            response = await self.httpx_client.get('https://account.nicovideo.jp/login', timeout=15.0)
             response.raise_for_status()
             if 'x-niconico-id' not in response.headers:
                 return None
@@ -155,7 +155,7 @@ class NDGRClient:
                 response = await self.httpx_client.post('https://account.nicovideo.jp/api/v1/login', data={
                     'mail': mail,
                     'password': password,
-                }, timeout=10.0)
+                }, timeout=15.0)
                 response.raise_for_status()
                 # x-niconico-id ヘッダーがセットされていない場合はログインに失敗している
                 if 'x-niconico-id' not in response.headers:
@@ -224,7 +224,7 @@ class NDGRClient:
             candidate_nicolive_program_ids: set[str] = set()
             candidate_nicolive_program_ids.update(provisional_jikkyo_program_id_map.get(jikkyo_channel_id, []))
             ## 放送中番組の ID を取得
-            response = await client.get(f'https://ch.nicovideo.jp/{jikkyo_channel_id}/live')
+            response = await client.get(f'https://ch.nicovideo.jp/{jikkyo_channel_id}/live', timeout=15.0)
             # 当面 503 はエラーにせず無視する (08/22 のニコニコチャンネル復旧までの暫定措置)
             if response.status_code != 503:
                 response.raise_for_status()
@@ -237,7 +237,7 @@ class NDGRClient:
                         candidate_nicolive_program_ids.add(live_id)
             ## 過去番組の ID をスクレイピングで取得
             for page in range(1, 3):  # 1 ページ目と 2 ページ目を取得
-                response = await client.get(f'https://sp.ch.nicovideo.jp/api/past_lives/?page={page}&channel_id={jikkyo_channel_id}')
+                response = await client.get(f'https://sp.ch.nicovideo.jp/api/past_lives/?page={page}&channel_id={jikkyo_channel_id}', timeout=15.0)
                 if response.status_code != 200:
                     # 当面 503 はエラーにせず無視する (08/22 のニコニコチャンネル復旧までの暫定措置)
                     if response.status_code == 503:
@@ -257,7 +257,7 @@ class NDGRClient:
             # 候補となるニコニコ生放送番組の放送期間を取得
             broadcast_periods: list[NicoLiveProgramBroadcastPeriod] = []
             for program_id in candidate_nicolive_program_ids:
-                response = await client.get(f'https://api.cas.nicovideo.jp/v1/services/live/programs/{program_id}')
+                response = await client.get(f'https://api.cas.nicovideo.jp/v1/services/live/programs/{program_id}', timeout=15.0)
                 response.raise_for_status()
                 response_json = response.json()
                 assert 'data' in response_json
@@ -299,11 +299,11 @@ class NDGRClient:
 
             # スクレイピングを開始する前に https://jk.nicovideo.jp/ にリクエストしてのステータスコードを確認
             ## 暫定措置中は 302 リダイレクトが行われているので、302 リダイレクトが行われなくなっていたら本復旧したと判断して以降の処理を行わない
-            response = await client.get('https://jk.nicovideo.jp/', follow_redirects=False)
+            response = await client.get('https://jk.nicovideo.jp/', follow_redirects=False, timeout=15.0)
             if response.status_code != 302:
                 return  # 以降は何もしない
 
-            response = await client.get('https://originalnews.nico/464285')
+            response = await client.get('https://originalnews.nico/464285', timeout=15.0)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -686,7 +686,7 @@ class NDGRClient:
         while True:
             self.print(f'Retrieving {backward_api_uri} ...', verbose_log=True)
             self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
-            response = await self.httpx_client.get(backward_api_uri, timeout=10.0)
+            response = await self.httpx_client.get(backward_api_uri, timeout=15.0)
             response.raise_for_status()
             packed_segment = chat.PackedSegment()
             packed_segment.ParseFromString(response.content)
@@ -747,7 +747,7 @@ class NDGRClient:
         """
 
         watch_page_url = f'https://live.nicovideo.jp/watch/{self.nicolive_program_id}'
-        reserve_response = await self.httpx_client.get(watch_page_url, timeout=10.0)
+        reserve_response = await self.httpx_client.get(watch_page_url, timeout=15.0)
         reserve_response.raise_for_status()
 
         soup = BeautifulSoup(reserve_response.text, 'html.parser')
@@ -782,13 +782,13 @@ class NDGRClient:
 
             # タイムシフト予約を実行
             api_url = f'https://live2.nicovideo.jp/api/v2/programs/{self.nicolive_program_id}/timeshift/reservation'
-            reserve_response = await self.httpx_client.post(api_url, headers={'x-frontend-id': '9'}, timeout=10.0)
+            reserve_response = await self.httpx_client.post(api_url, headers={'x-frontend-id': '9'}, timeout=15.0)
             if reserve_response.status_code != 200:
                 raise ValueError('Failed to reserve timeshift. Are you premium member?')
 
             # タイムシフト視聴を開始
             ## この API の実行後、ニコニコ生放送の視聴ページから webSocketUrl が取得できるようになる
-            start_watching_response = await self.httpx_client.patch(api_url, headers={'x-frontend-id': '9'}, timeout=10.0)
+            start_watching_response = await self.httpx_client.patch(api_url, headers={'x-frontend-id': '9'}, timeout=15.0)
             if start_watching_response.status_code != 200:
                 raise ValueError('Failed to start timeshift watching. Are you premium member?')
 
@@ -939,7 +939,7 @@ class NDGRClient:
 
                 # Protobuf ストリームを取得
                 # HTTP エラー発生時は例外を送出してリトライさせる
-                async with self.httpx_client.stream('GET', uri, timeout=httpx.Timeout(10.0, read=None)) as response:
+                async with self.httpx_client.stream('GET', uri, timeout=httpx.Timeout(15.0, read=None)) as response:
                     response.raise_for_status()
 
                     # Protobuf チャンクを読み取る

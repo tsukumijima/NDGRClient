@@ -281,73 +281,6 @@ class NDGRClient:
         return [period['nicoliveProgramId'] for period in broadcast_periods]
 
 
-    @classmethod
-    async def updateJikkyoChannelIDMap(cls) -> None:
-        """
-        https://originalnews.nico/464285 から最新の実況チャンネル ID とニコニコチャンネル ID のマッピングを取得し、
-        クラス変数 JIKKYO_CHANNEL_ID_MAP に格納する
-        ニコニコ実況がチャンネル生放送で本復旧するまでの暫定的な実装で (本復旧後に除去予定) 、NDGRClient の初期化前に実行する必要がある
-        """
-
-        # クラスメソッドから self.httpx_client にはアクセスできないため、新しい httpx.AsyncClient を作成している
-        async with httpx.AsyncClient(headers=cls.HTTP_HEADERS, follow_redirects=True) as client:
-
-            # スクレイピングを開始する前に https://jk.nicovideo.jp/ にリクエストしてのステータスコードを確認
-            ## 暫定措置中は 302 リダイレクトが行われているので、302 リダイレクトが行われなくなっていたら本復旧したと判断して以降の処理を行わない
-            response = await client.get('https://jk.nicovideo.jp/', follow_redirects=False, timeout=15.0)
-            if response.status_code != 302:
-                return  # 以降は何もしない
-
-            response = await client.get('https://originalnews.nico/464285', timeout=15.0)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-        gallery = soup.find('div', id='gallery-1')
-        if not gallery:
-            raise ValueError('Gallery not found.')
-
-        new_map = {}
-        for item in cast(Tag, gallery).find_all('dl', class_='gallery-item'):
-            caption = item.find('dd', class_='wp-caption-text gallery-caption')
-            if not caption:
-                continue
-
-            link = caption.find('a')
-            if not link:
-                continue
-            href = link.get('href')
-            if not href:
-                continue
-
-            channel_name = link.text.replace('はこちら', '').strip()
-            live_id = href.split('/')[-1]
-            if channel_name == 'NHK総合':
-                new_map['jk1'] = live_id
-            elif channel_name == 'NHK Eテレ':
-                new_map['jk2'] = live_id
-            elif channel_name == '日本テレビ':
-                new_map['jk4'] = live_id
-            elif channel_name == 'テレビ朝日':
-                new_map['jk5'] = live_id
-            elif channel_name == 'TBSテレビ':
-                new_map['jk6'] = live_id
-            elif channel_name == 'テレビ東京':
-                new_map['jk7'] = live_id
-            elif channel_name == 'フジテレビ':
-                new_map['jk8'] = live_id
-            elif channel_name == 'TOKYO MX':
-                new_map['jk9'] = live_id
-            elif channel_name == 'NHK BS':
-                new_map['jk101'] = live_id
-            elif channel_name == 'BS11':
-                new_map['jk211'] = live_id
-
-        if len(new_map) != 10:
-            raise ValueError(f'Expected 10 channels, but found {len(new_map)}.')
-
-        cls.JIKKYO_CHANNEL_ID_MAP = new_map
-
-
     async def streamComments(self) -> AsyncGenerator[NDGRComment, None]:
         """
         NDGR メッセージサーバーからリアルタイムコメントを随時ストリーミングする非同期ジェネレータ
@@ -417,19 +350,10 @@ class NDGRClient:
                         # 受信中番組がニコニコ実況番組のときのみ
                         elif self.jikkyo_channel_id is not None:
 
-                            # 番組の放送が終了した場合、ニコニコ実況チャンネル ID とニコニコ生放送番組 ID のマッピングを更新し、
-                            # 後続のニコニコ実況番組に切り替えてコメント受信処理を再開する
-                            ## 08/22 まで公式生放送で運用されている暫定ニコニコ実況向けの処理
-                            if new_program_info.status == 'ENDED':
-                                await asyncio.sleep(25)  # 記事の反映まで 25 秒ほど待つ
-                                await NDGRClient.updateJikkyoChannelIDMap()
-                                self.nicolive_program_id = NDGRClient.JIKKYO_CHANNEL_ID_MAP[self.jikkyo_channel_id]
-                                return 'RESTART'  # 再起動信号を返す
-
                             # 同一ニコニコチャンネルで連続して配信されているものの、ニコニコ生放送番組 ID が変更された場合は、
                             # 後続のニコニコ実況番組に切り替えてコメント受信処理を再開する
                             ## ニコニコ実況の毎日 04:00 での番組リセット向けの処理
-                            elif new_program_info.nicoliveProgramId != self.nicolive_program_id:
+                            if new_program_info.nicoliveProgramId != self.nicolive_program_id:
                                 return 'RESTART'  # 再起動信号を返す
 
                     except KeyboardInterrupt:

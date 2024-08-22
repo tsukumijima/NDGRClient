@@ -20,7 +20,6 @@ async def stream(
     print(Rule(characters='-', style=Style(color='#E33157')))
 
     # NDGRClient を初期化
-    await NDGRClient.updateJikkyoChannelIDMap()
     ndgr_client = NDGRClient(nicolive_program_id, verbose=verbose, console_output=True)
 
     # コメントをエンドレスでストリーミング開始
@@ -45,7 +44,6 @@ async def download(
     else:
         jikkyo_ids = [nicolive_program_id]
 
-    await NDGRClient.updateJikkyoChannelIDMap()
     comment_counts: dict[str, int] = {}
     for jid in jikkyo_ids:
         # NDGRClient を初期化

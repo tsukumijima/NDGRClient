@@ -72,32 +72,37 @@ class NDGRClient:
     }
 
 
-    def __init__(self, nicolive_program_id: str, verbose: bool = False, console_output: bool = False, log_path: Path | None = None) -> None:
+    def __init__(self, nicolive_id: str, verbose: bool = False, console_output: bool = False, log_path: Path | None = None) -> None:
         """
         NDGRClient のコンストラクタ
-        nicolive_program_id にニコニコ実況のチャンネル ID を渡したときは、
+        nicolive_id にニコニコ実況のチャンネル ID を渡したときは、
         当該ニコニコ実況チャンネルで現在放送中のニコニコ生放送番組 (実況枠) に対して処理を行う
 
         Args:
-            nicolive_program_id (str): ニコニコ生放送の番組 ID (ex: lv345479988) or ニコニコ実況のチャンネル ID (ex: jk1, jk211)
+            nicolive_id (str): ニコニコ生放送の番組 ID (ex: lv345479988) or ニコニコ実況のチャンネル ID (ex: jk1, jk211)
             verbose (bool, default=False): 詳細な動作ログを出力するかどうか
             console_output (bool, default=False): 動作ログをコンソールに出力するかどうか
             log_path (Path | None, default=None): 動作ログをファイルに出力する場合のパス (show_log と併用可能)
         """
 
-        if nicolive_program_id.startswith('jk'):
-            # nicolive_program_id が jk から始まる場合、ニコニコ実況 ID として扱う
+        # self.nicolive_id と NicoLiveProgramInfo.nicoLiveProgramId は似ているようで異なるため注意
+        # self.nicolive_id はニコニコ生放送番組 ID (lv ID) とニコニコチャンネル ID (ch ID) の両方が入りうるが、
+        # NicoLiveProgramInfo.nicoLiveProgramId はニコニコ生放送番組 ID (lv ID) のみが入る
+        # self.nicolive_id は原則視聴ページの URL 以外では使えず、それ以外の API などでは常にニコニコ生放送番組 ID を使う必要がある
+
+        if nicolive_id.startswith('jk'):
+            # nicolive_id が jk から始まる場合、ニコニコ実況 ID として扱う
             ## ニコニコチャンネル ID とニコニコ生放送番組 ID は異なる概念だが、ニコニコ生放送では /watch/(ニコニコチャンネル ID) の URL で
             ## 当該チャンネルで現在放送中の番組にアクセスできる仕様があるので、それを使っている
-            if nicolive_program_id not in self.JIKKYO_CHANNEL_ID_MAP:
-                raise ValueError(f'Invalid jikkyo_channel_id: {nicolive_program_id}')
-            self.nicolive_program_id = self.JIKKYO_CHANNEL_ID_MAP[nicolive_program_id]
-            self.jikkyo_channel_id = nicolive_program_id
+            if nicolive_id not in self.JIKKYO_CHANNEL_ID_MAP:
+                raise ValueError(f'Invalid jikkyo_channel_id: {nicolive_id}')
+            self.nicolive_id = self.JIKKYO_CHANNEL_ID_MAP[nicolive_id]
+            self.jikkyo_channel_id = nicolive_id
         else:
             # それ以外の場合は lv から始まる通常のニコニコ生放送番組 ID として扱う
-            if not nicolive_program_id.startswith('lv'):
-                raise ValueError(f'Invalid nicolive_program_id: {nicolive_program_id}')
-            self.nicolive_program_id = nicolive_program_id
+            if not nicolive_id.startswith('lv'):
+                raise ValueError(f'Invalid nicolive_id: {nicolive_id}')
+            self.nicolive_id = nicolive_id
             self.jikkyo_channel_id = None
 
         self.verbose = verbose
@@ -307,7 +312,7 @@ class NDGRClient:
             if nicolive_program_info.status == 'ENDED':
                 # すでに放送を終了した番組はストリーミングを開始できない
                 ## 厳密には NDGR の各 API に接続することはできるが、当然新規にコメントが降ってくることはなく、過去ログ参照のみ
-                raise ValueError(f'Program {self.nicolive_program_id} has already ended and cannot be streamed.')
+                raise ValueError(f'Program {nicolive_program_info.nicoliveProgramId} has already ended and cannot be streamed.')
             self.print(f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})')
             self.print(f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
                        f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
@@ -335,26 +340,31 @@ class NDGRClient:
                     Literal['RESTART']: 後続の番組に切り替えてコメント受信処理を再開するために 'RESTART' を返す
                 """
 
+                nonlocal nicolive_program_info
+
                 # 毎分 05 秒に実行
                 ## 00 秒ちょうどにアクセスするとギリギリ変更反映前のデータを取得してしまう可能性があるため、敢えて 5 秒待っている
                 while True:
                     await asyncio.sleep(60 - datetime.now().second % 60 + 5)
                     try:
-                        # 視聴ページから self.nicolive_program_id に対応する現在の番組ステータスを取得する
-                        new_program_info = await self.fetchNicoLiveProgramInfo()
+                        # 視聴ページから self.nicolive_id に対応する現在の番組ステータスを取得する
+                        new_nicolive_program_info = await self.fetchNicoLiveProgramInfo()
 
                         # 受信中番組がニコニコ実況番組ではなく、かつ番組の放送が終了した
-                        if self.jikkyo_channel_id is None and new_program_info.status == 'ENDED':
+                        if self.jikkyo_channel_id is None and new_nicolive_program_info.status == 'ENDED':
                             return 'ENDED'  # 終了信号を返す
 
                         # 受信中番組がニコニコ実況番組のときのみ
                         elif self.jikkyo_channel_id is not None:
 
-                            # 同一ニコニコチャンネルで連続して配信されているものの、ニコニコ生放送番組 ID が変更された場合は、
-                            # 後続のニコニコ実況番組に切り替えてコメント受信処理を再開する
+                            # 同一ニコニコチャンネルで連続して配信されているものの、前回の番組情報取得時から
+                            # ニコニコ生放送番組 ID が変更されているときは、後続のニコニコ実況番組に切り替えてコメント受信処理を再開する
                             ## ニコニコ実況の毎日 04:00 での番組リセット向けの処理
-                            if new_program_info.nicoliveProgramId != self.nicolive_program_id:
+                            if new_nicolive_program_info.nicoliveProgramId != nicolive_program_info.nicoliveProgramId:
                                 return 'RESTART'  # 再起動信号を返す
+
+                        # 現在の番組情報を更新
+                        nicolive_program_info = new_nicolive_program_info
 
                     except KeyboardInterrupt:
                         raise
@@ -666,7 +676,7 @@ class NDGRClient:
             AssertionError: 解析に失敗した場合
         """
 
-        watch_page_url = f'https://live.nicovideo.jp/watch/{self.nicolive_program_id}'
+        watch_page_url = f'https://live.nicovideo.jp/watch/{self.nicolive_id}'
         reserve_response = await self.httpx_client.get(watch_page_url, timeout=15.0)
         reserve_response.raise_for_status()
 
@@ -701,7 +711,7 @@ class NDGRClient:
         if program_info.status == 'ENDED' and program_info.webSocketUrl == '' and self.is_logged_in:
 
             # タイムシフト予約を実行
-            api_url = f'https://live2.nicovideo.jp/api/v2/programs/{self.nicolive_program_id}/timeshift/reservation'
+            api_url = f'https://live2.nicovideo.jp/api/v2/programs/{program_info.nicoliveProgramId}/timeshift/reservation'
             reserve_response = await self.httpx_client.post(api_url, headers={'x-frontend-id': '9'}, timeout=15.0)
             ## meta.errorCode が "DUPLICATED" の場合は既にタイムシフト予約済みなので無視する
             if reserve_response.status_code != 200 and reserve_response.json().get('meta', {}).get('errorCode') != 'DUPLICATED':

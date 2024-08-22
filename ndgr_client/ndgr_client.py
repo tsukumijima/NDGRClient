@@ -225,23 +225,18 @@ class NDGRClient:
             candidate_nicolive_program_ids.update(provisional_jikkyo_program_id_map.get(jikkyo_channel_id, []))
             ## 放送中番組の ID を取得
             response = await client.get(f'https://ch.nicovideo.jp/{jikkyo_channel_id}/live', timeout=15.0)
-            # 当面 503 はエラーにせず無視する (08/22 のニコニコチャンネル復旧までの暫定措置)
-            if response.status_code != 503:
-                response.raise_for_status()
-                soup = BeautifulSoup(response.content, 'html.parser')
-                live_now = soup.find('div', id='live_now')
-                if live_now:
-                    live_link = live_now.find('a', href=lambda href: bool(href and href.startswith('https://live.nicovideo.jp/watch/lv')))  # type: ignore
-                    if live_link:
-                        live_id = cast(str, cast(Tag, live_link).get('href')).split('/')[-1]
-                        candidate_nicolive_program_ids.add(live_id)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, 'html.parser')
+            live_now = soup.find('div', id='live_now')
+            if live_now:
+                live_link = live_now.find('a', href=lambda href: bool(href and href.startswith('https://live.nicovideo.jp/watch/lv')))  # type: ignore
+                if live_link:
+                    live_id = cast(str, cast(Tag, live_link).get('href')).split('/')[-1]
+                    candidate_nicolive_program_ids.add(live_id)
             ## 過去番組の ID をスクレイピングで取得
             for page in range(1, 3):  # 1 ページ目と 2 ページ目を取得
                 response = await client.get(f'https://sp.ch.nicovideo.jp/api/past_lives/?page={page}&channel_id={jikkyo_channel_id}', timeout=15.0)
                 if response.status_code != 200:
-                    # 当面 503 はエラーにせず無視する (08/22 のニコニコチャンネル復旧までの暫定措置)
-                    if response.status_code == 503:
-                        continue
                     if page == 1:
                         # 1 ページは必ず取得できるはずなので、取得できなかった場合はニコ生側で何らかの問題が発生している
                         response.raise_for_status()

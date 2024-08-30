@@ -641,11 +641,16 @@ class NDGRClient:
                 # meta または message が存在しない場合は空の ChunkedMessage なので無視する
                 if not chunked_message.HasField('meta') or not chunked_message.HasField('message'):
                     continue
-                # NicoLiveMessage の中に chat がない場合は運営コメントや市場などコメント以外のメッセージなので無視する
-                if not chunked_message.message.HasField('chat'):
+                # NicoLiveMessage の中に chat or overflowed_chat がない場合は運営コメントや市場などコメント以外のメッセージなので無視する
+                # 通常のコメントであればどちらかは必ず存在するはず
+                if not chunked_message.message.HasField('chat') and not chunked_message.message.HasField('overflowed_chat'):
                     continue
                 # Chat の中に Modifier がない場合 (存在するのか？) はコメントの位置や色などの情報が取れないのでとりあえず無視する
-                if not chunked_message.message.chat.HasField('modifier'):
+                if chunked_message.message.HasField('chat'):
+                    message_chat = chunked_message.message.chat
+                else:
+                    message_chat = chunked_message.message.overflowed_chat
+                if not message_chat.HasField('modifier'):
                     continue
 
                 # 取り回しやすいように NDGRComment Pydantic モデルに変換
@@ -839,11 +844,16 @@ class NDGRClient:
             # meta または message が存在しない場合は空の ChunkedMessage なので無視する
             if not chunked_message.HasField('meta') or not chunked_message.HasField('message'):
                 continue
-            # NicoLiveMessage の中に chat がない場合は運営コメントや市場などコメント以外のメッセージなので無視する
-            if not chunked_message.message.HasField('chat'):
+            # NicoLiveMessage の中に chat or overflowed_chat がない場合は運営コメントや市場などコメント以外のメッセージなので無視する
+            # 通常のコメントであればどちらかは必ず存在するはず
+            if not chunked_message.message.HasField('chat') and not chunked_message.message.HasField('overflowed_chat'):
                 continue
             # Chat の中に Modifier がない場合 (存在するのか？) はコメントの位置や色などの情報が取れないのでとりあえず無視する
-            if not chunked_message.message.chat.HasField('modifier'):
+            if chunked_message.message.HasField('chat'):
+                message_chat = chunked_message.message.chat
+            else:
+                message_chat = chunked_message.message.overflowed_chat
+            if not message_chat.HasField('modifier'):
                 continue
             yield self.convertToNDGRComment(chunked_message)
 
@@ -959,36 +969,43 @@ class NDGRClient:
         """
 
         assert chunked_message.HasField('message')
-        assert chunked_message.message.HasField('chat')
-        assert chunked_message.message.chat.HasField('modifier')
+        assert chunked_message.message.HasField('chat') or chunked_message.message.HasField('overflowed_chat')
+
+        # chat または overflowed_chat のどちらかを取得
+        ## overflowed_chat は「メインとなるコメント空間（アリーナ）からあふれたユーザーコメント」を表す (通常は表示されない)
+        if chunked_message.message.HasField('chat'):
+            message_chat = chunked_message.message.chat
+        else:
+            message_chat = chunked_message.message.overflowed_chat
+        assert message_chat.HasField('modifier')
 
         # 色は named_color または full_color のどちらかで指定されている
         # 万が一どちらも指定されている場合は、full_color を優先する
         color = 'white'
-        if chunked_message.message.chat.modifier.HasField('full_color'):
+        if message_chat.modifier.HasField('full_color'):
             color = NDGRCommentFullColor(
-                r = chunked_message.message.chat.modifier.full_color.r,
-                g = chunked_message.message.chat.modifier.full_color.g,
-                b = chunked_message.message.chat.modifier.full_color.b,
+                r = message_chat.modifier.full_color.r,
+                g = message_chat.modifier.full_color.g,
+                b = message_chat.modifier.full_color.b,
             )
-        elif chunked_message.message.chat.modifier.HasField('named_color'):
-            color = cast(Any, atoms.Chat.Modifier.ColorName.Name(chunked_message.message.chat.modifier.named_color).lower())
+        elif message_chat.modifier.HasField('named_color'):
+            color = cast(Any, atoms.Chat.Modifier.ColorName.Name(message_chat.modifier.named_color).lower())
 
         comment = NDGRComment(
             id = chunked_message.meta.id,
             at = datetime.fromtimestamp(chunked_message.meta.at.seconds + (chunked_message.meta.at.nanos / 1e9)),
             live_id = chunked_message.meta.origin.chat.live_id,
-            raw_user_id = chunked_message.message.chat.raw_user_id,
-            hashed_user_id = chunked_message.message.chat.hashed_user_id,
-            account_status = cast(Any, atoms.Chat.AccountStatus.Name(chunked_message.message.chat.account_status)),
-            no = chunked_message.message.chat.no,
-            vpos = chunked_message.message.chat.vpos,
-            position = cast(Any, atoms.Chat.Modifier.Pos.Name(chunked_message.message.chat.modifier.position).lower()),
-            size = cast(Any, atoms.Chat.Modifier.Size.Name(chunked_message.message.chat.modifier.size).lower()),
+            raw_user_id = message_chat.raw_user_id,
+            hashed_user_id = message_chat.hashed_user_id,
+            account_status = cast(Any, atoms.Chat.AccountStatus.Name(message_chat.account_status)),
+            no = message_chat.no,
+            vpos = message_chat.vpos,
+            position = cast(Any, atoms.Chat.Modifier.Pos.Name(message_chat.modifier.position).lower()),
+            size = cast(Any, atoms.Chat.Modifier.Size.Name(message_chat.modifier.size).lower()),
             color = color,
-            font = cast(Any, atoms.Chat.Modifier.Font.Name(chunked_message.message.chat.modifier.font).lower()),
-            opacity = cast(Any, atoms.Chat.Modifier.Opacity.Name(chunked_message.message.chat.modifier.opacity)),
-            content = chunked_message.message.chat.content,
+            font = cast(Any, atoms.Chat.Modifier.Font.Name(message_chat.modifier.font).lower()),
+            opacity = cast(Any, atoms.Chat.Modifier.Opacity.Name(message_chat.modifier.opacity)),
+            content = message_chat.content,
         )
 
         return comment

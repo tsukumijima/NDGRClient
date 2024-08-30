@@ -5,9 +5,9 @@ isort:skip_file
 
 import builtins
 import collections.abc
-import dwango.nicolive.chat.data.message_pb2
-import dwango.nicolive.chat.data.origin_pb2
-import dwango.nicolive.chat.data.state_pb2
+import ndgr_client.proto.dwango.nicolive.chat.data.message_pb2
+import ndgr_client.proto.dwango.nicolive.chat.data.origin_pb2
+import ndgr_client.proto.dwango.nicolive.chat.data.state_pb2
 import google.protobuf.descriptor
 import google.protobuf.internal.containers
 import google.protobuf.internal.enum_type_wrapper
@@ -49,13 +49,13 @@ class ChunkedMessage(google.protobuf.message.Message):
         @property
         def at(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
         @property
-        def origin(self) -> dwango.nicolive.chat.data.origin_pb2.NicoliveOrigin: ...
+        def origin(self) -> ndgr_client.proto.dwango.nicolive.chat.data.origin_pb2.NicoliveOrigin: ...
         def __init__(
             self,
             *,
             id: builtins.str = ...,
             at: google.protobuf.timestamp_pb2.Timestamp | None = ...,
-            origin: dwango.nicolive.chat.data.origin_pb2.NicoliveOrigin | None = ...,
+            origin: ndgr_client.proto.dwango.nicolive.chat.data.origin_pb2.NicoliveOrigin | None = ...,
         ) -> None: ...
         def HasField(self, field_name: typing.Literal["at", b"at", "origin", b"origin"]) -> builtins.bool: ...
         def ClearField(self, field_name: typing.Literal["at", b"at", "id", b"id", "origin", b"origin"]) -> None: ...
@@ -68,15 +68,15 @@ class ChunkedMessage(google.protobuf.message.Message):
     @property
     def meta(self) -> global___ChunkedMessage.Meta: ...
     @property
-    def message(self) -> dwango.nicolive.chat.data.message_pb2.NicoliveMessage: ...
+    def message(self) -> ndgr_client.proto.dwango.nicolive.chat.data.message_pb2.NicoliveMessage: ...
     @property
-    def state(self) -> dwango.nicolive.chat.data.state_pb2.NicoliveState: ...
+    def state(self) -> ndgr_client.proto.dwango.nicolive.chat.data.state_pb2.NicoliveState: ...
     def __init__(
         self,
         *,
         meta: global___ChunkedMessage.Meta | None = ...,
-        message: dwango.nicolive.chat.data.message_pb2.NicoliveMessage | None = ...,
-        state: dwango.nicolive.chat.data.state_pb2.NicoliveState | None = ...,
+        message: ndgr_client.proto.dwango.nicolive.chat.data.message_pb2.NicoliveMessage | None = ...,
+        state: ndgr_client.proto.dwango.nicolive.chat.data.state_pb2.NicoliveState | None = ...,
         signal: global___ChunkedMessage.Signal.ValueType = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["message", b"message", "meta", b"meta", "payload", b"payload", "signal", b"signal", "state", b"state"]) -> builtins.bool: ...

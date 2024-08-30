@@ -8,7 +8,7 @@ readme = "Readme.md"
 
 [tool.taskipy.tasks]
 # 生成した後に from dwango.nicolive を from ndgr_client.proto.dwango.nicolive に一括置換する
-generate-proto = "find proto -name '*.proto' | xargs protoc --proto_path=proto --python_out=ndgr_client/proto --mypy_out=ndgr_client/proto && find ndgr_client/proto -name '*.py' | xargs sed -i '' 's/from dwango.nicolive/from ndgr_client.proto.dwango.nicolive/g'"
+generate-proto = "find proto -name '*.proto' | xargs protoc --proto_path=proto --python_out=ndgr_client/proto --mypy_out=ndgr_client/proto && find ndgr_client/proto -name '*.py' -o -name '*.pyi' | xargs sed -i '' 's/ dwango\\.nicolive/ ndgr_client.proto.dwango.nicolive/g'"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"

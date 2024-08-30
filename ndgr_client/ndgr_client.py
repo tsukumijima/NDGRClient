@@ -416,6 +416,11 @@ class NDGRClient:
                                                f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}', verbose_log=True)
                                     self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
 
+                                    # すでに同一 URI の ChunkedMessage 受信タスクが存在する場合 (通信エラーの発生でリトライした場合など) は、
+                                    # 既存の実行中タスクをキャンセルする
+                                    if segment.uri in active_segments:
+                                        active_segments[segment.uri].cancel()
+
                                     # 新しい ChunkedMessage 受信タスクを作成し、開始
                                     task = asyncio.create_task(fetch_chunked_message(segment))
                                     active_segments[segment.uri] = task

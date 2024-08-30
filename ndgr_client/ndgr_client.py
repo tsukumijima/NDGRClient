@@ -873,9 +873,15 @@ class NDGRClient:
             try:
                 protobuf_reader = ProtobufStreamReader()
 
-                # Protobuf ストリームを取得
-                # HTTP エラー発生時は例外を送出してリトライさせる
-                async with self.httpx_client.stream('GET', uri, timeout=httpx.Timeout(15.0, read=None)) as response:
+                # Protobuf ストリームを受信
+                # read タイムアウトのみ 40 秒、それ以外は 15 秒に設定
+                ## NDGR View API は最大 32 秒間、NDGR Segment API は最大 16 + 8 (配信開始前の待機時間) = 24 秒間 Protobuf ストリームを配信する
+                ## したがって通常 33 秒以上 HTTP 接続が持続することはあり得ないため、少し余裕を持たせて 40 秒の read タイムアウトを設定している
+                ## 通常は発生し得ないが、デバイスのネットワーク環境が悪い or メッセージサーバー側の動作不良などの要因で
+                ## ごく稀に何もデータが降ってこないのに HTTP 接続だけずっと維持される問題への対応
+                async with self.httpx_client.stream('GET', uri, timeout=httpx.Timeout(15.0, read=40.0)) as response:
+
+                    # HTTP エラー発生時は例外を送出してリトライさせる
                     response.raise_for_status()
 
                     # Protobuf チャンクを読み取る

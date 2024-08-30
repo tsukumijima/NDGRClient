@@ -569,19 +569,16 @@ class NDGRClient:
                 at = 'now'
                 is_first_time = False
 
-            ready_for_next = None
-            backward_api_uri = None
-
             # イベントを作成して、backward_api_uri が見つかったら設定する
             backward_api_uri_found = asyncio.Event()
 
-            async def process_chunked_entries():
+            async def process_chunked_entries() -> str | None:
                 """
                 ChunkedEntry の受信を処理する非同期ジェネレータ関数
                 ChunkedEntry には、NDGR Segment API / NDGR Backward API など複数の API のアクセス先 URI が含まれる
                 """
 
-                nonlocal ready_for_next, backward_api_uri
+                nonlocal ready_for_next, backward_api_uri, backward_api_uri_found
                 async for chunked_entry in self.fetchChunkedEntries(view_api_uri, at):
 
                     # next フィールドがが設定されているとき、NDGR View API への次回アクセス時に ?at= に指定するタイムスタンプ
@@ -594,13 +591,15 @@ class NDGRClient:
                     elif chunked_entry.HasField('backward'):
                         backward_api_uri = chunked_entry.backward.segment.uri
                         backward_api_uri_found.set()  # イベントを設定して、ループを終了させる
-                        break
+                        return backward_api_uri
+
+                return None
 
             # NDGR View API から ChunkedEntry の受信を開始する非同期タスクを作成
             read_task = asyncio.create_task(process_chunked_entries())
 
             # backward_api_uri が見つかるか、self.readProtobufStream() が完了するまで待機
-            _, pending = await asyncio.wait(
+            done, pending = await asyncio.wait(
                 [read_task, asyncio.create_task(backward_api_uri_found.wait())],
                 return_when = asyncio.FIRST_COMPLETED,
             )
@@ -608,6 +607,13 @@ class NDGRClient:
             # 完了していないタスクをキャンセル
             for task in pending:
                 task.cancel()
+
+            # read_task の結果を取得
+            ## 本来ここで再度設定する必要はないが、このスコープで backward_api_uri を設定しないと
+            ## 2024/08/31 時点での Pylance が到達不能コード扱いしてくるので、やむを得ずこうしている
+            for task in done:
+                if task is read_task:
+                    backward_api_uri = cast(str | None, task.result())
 
             # backward_api_uri が取得できたらループを抜ける
             if backward_api_uri is not None:

@@ -52,6 +52,9 @@ poetry run python -m ndgr_client stream <nicolive_program_id or jikkyo_id>
 終了するにはコンソールで `Ctrl+C` を入力してください。
 
 > [!TIP]
+> `--mail` オプションと `--password` オプションを付けると、ログインした状態でコメントを取得できます。
+
+> [!TIP]
 > `--verbose` オプションを付けると、詳細な動作ログが出力されます。
 
 ### Download Kakolog
@@ -69,6 +72,10 @@ poetry run python -m ndgr_client download <nicolive_program_id or jikkyo_id> --o
 
 > [!TIP]
 > `jikkyo_id` に `all` を指定すると、すべてのニコニコ実況チャンネルのコメントを一括でダウンロードできます。
+
+> [!TIP]
+> `--mail` オプションと `--password` オプションを付けると、ログインした状態でコメントを取得できます。  
+> 放送が終了した番組のコメントをダウンロードするには、プレミアム会員アカウントへのログインが必要です。
 
 > [!TIP]
 > `--verbose` オプションを付けると、詳細な動作ログが出力されます。

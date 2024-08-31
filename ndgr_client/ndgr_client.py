@@ -416,14 +416,14 @@ class NDGRClient:
                                                f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}', verbose_log=True)
                                     self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
 
-                                    # すでに同一 URI の ChunkedMessage 受信タスクが存在する場合 (通信エラーの発生でリトライした場合など) は、
-                                    # 既存の実行中タスクをキャンセルする
-                                    if segment.uri in active_segments:
-                                        active_segments[segment.uri].cancel()
-
-                                    # 新しい ChunkedMessage 受信タスクを作成し、開始
-                                    task = asyncio.create_task(fetch_chunked_message(segment))
-                                    active_segments[segment.uri] = task
+                                    # すでに同一 URI の ChunkedMessage 受信タスクが存在する場合は、
+                                    # 新しいタスクを作成せずに既存のタスクを継続して使用する
+                                    if segment.uri not in active_segments:
+                                        # 新しい ChunkedMessage 受信タスクを作成し、開始
+                                        task = asyncio.create_task(fetch_chunked_message(segment))
+                                        active_segments[segment.uri] = task
+                                    else:
+                                        self.print(f'Task for segment URI {segment.uri} is already running. Skipping creation of new task.', verbose_log=True)
 
                                 # 次回の NDGR View API アクセス用タイムスタンプを取得
                                 elif chunked_entry.HasField('next'):

@@ -145,7 +145,8 @@ class NDGRClient:
 
         # Cookie 辞書が指定されたとき、HTTP クライアントに Cookie を設定
         if cookies is not None:
-            self.httpx_client.cookies.update(cookies)
+            for key, value in cookies.items():
+                self.httpx_client.cookies.set(key, value, domain='.nicovideo.jp', path='/')
 
             # https://account.nicovideo.jp/login にアクセスして x-niconico-id ヘッダーがセットされているか確認
             response = await self.httpx_client.get('https://account.nicovideo.jp/login', timeout=15.0)
@@ -156,6 +157,8 @@ class NDGRClient:
         # メールアドレスとパスワードが指定されたとき、ログイン処理を実行
         else:
             try:
+                # ログイン処理に悪影響を及ぼさないよう、既存の Cookie を削除
+                self.httpx_client.cookies.clear()
                 # この API にアクセスすると Cookie (user_session) が HTTP クライアントにセットされる
                 response = await self.httpx_client.post('https://account.nicovideo.jp/api/v1/login', data={
                     'mail': mail,

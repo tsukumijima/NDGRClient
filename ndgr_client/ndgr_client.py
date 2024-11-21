@@ -261,6 +261,10 @@ class NDGRClient:
             broadcast_periods: list[NicoLiveProgramBroadcastPeriod] = []
             for program_id in candidate_nicolive_program_ids:
                 response = await client.get(f'https://api.cas.nicovideo.jp/v1/services/live/programs/{program_id}', timeout=15.0)
+                # ごく稀にキャンセルされたなどで存在が抹消された番組もリストに含まれる場合があるので、その場合はスキップ
+                ## 例: lv346334901
+                if response.status_code == 404:
+                    continue
                 response.raise_for_status()
                 response_json = response.json()
                 assert 'data' in response_json

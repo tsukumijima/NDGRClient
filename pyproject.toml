@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ndgr-client"
-version = "0.1.0"
+version = "1.0.0"
 description = "NDGRClient: Nicolive NDGR Message Server Client Library"
 authors = ["tsukumi <tsukumijima@users.noreply.github.com>"]
 license = "MIT"
@@ -11,16 +11,16 @@ readme = "Readme.md"
 generate-proto = "find proto -name '*.proto' | xargs protoc --proto_path=proto --python_out=ndgr_client/proto --mypy_out=ndgr_client/proto && find ndgr_client/proto -name '*.py' -o -name '*.pyi' | xargs sed -i '' 's/ dwango\\.nicolive/ ndgr_client.proto.dwango.nicolive/g'"
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.13"
-beautifulsoup4 = "^4.12.3"
-httpx = "^0.27.0"
-lxml = "^5.2.2"
-lxml-stubs = "^0.5.1"
+python = ">=3.11,<4.0"
+beautifulsoup4 = ">=4.12.3"
+httpx = ">=0.27.0"
+lxml = ">=5.2.2"
+lxml-stubs = ">=0.5.1"
 protobuf = "<5.28.0"  # protoc のバージョンに合わせないと警告が出る
-pydantic = "^2.8.2"
-typer = {version = "^0.12.3", extras = ["all"]}
-typing-extensions = "^4.12.2"
-websockets = "^12.0"
+pydantic = ">=2.8.2"
+typer = {version = ">=0.12.3", extras = ["all"]}
+typing-extensions = ">=4.12.2"
+websockets = ">=12.0"
 
 [tool.poetry.group.dev.dependencies]
 mypy-protobuf = "^3.6.0"

@@ -738,11 +738,11 @@ class NDGRClient:
         # - 番組が終了している (ENDED)
         # - 番組終了時刻から15分以上経過している
         # - self.nicolive_id がニコニコチャンネル ID (chXXXXX) である
-        # これらの条件をすべて満たす場合、ニコニコチャンネルのトップページから現在放送中の lvID を取得し直すことを試みる。
-        # これは、ニコ生側のバグで /watch/chXXXXX へのアクセスが古い (終了済み番組の) lvID にリダイレクトされる場合があることへの対処。
+        # これらの条件をすべて満たす場合、ニコニコチャンネルのトップページから現在放送中の lvID を取得し直すことを試みる
+        # ニコ生側のバグで /watch/chXXXXX へのアクセスが古い (終了済み番組の) lvID にリダイレクトされる場合があることへの対処
         if ((program_info.status == 'ENDED') and
             (datetime.now().timestamp() > program_info.endTime + (15 * 60)) and
-            (self.nicolive_id.startswith('ch'))):  # jikkyo_channel_id の場合もコンストラクタで ch に変換されている
+            (self.nicolive_id.startswith('ch'))):  # コンストラクタで jikkyo_channel_id が指定された場合も self.nicolive_id にはニコニコチャンネル ID が入っている
 
             channel_id_for_fallback = self.nicolive_id
             self.print(f'[Fallback] Program {program_info.nicoliveProgramId} has ended. Attempting to fetch current live ID for channel {channel_id_for_fallback}.')

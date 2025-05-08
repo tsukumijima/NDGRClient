@@ -699,34 +699,89 @@ class NDGRClient:
             AssertionError: 解析に失敗した場合
         """
 
-        watch_page_url = f'https://live.nicovideo.jp/watch/{self.nicolive_id}'
-        reserve_response = await self.httpx_client.get(watch_page_url, timeout=15.0)
-        reserve_response.raise_for_status()
+        async def fetch_program_info_from_watch_page(watch_page_url: str) -> NicoLiveProgramInfo:
+            """
+            指定されたニコニコ生放送の視聴ページ URL から番組情報を取得する内部ヘルパー関数。
+            """
+            response = await self.httpx_client.get(watch_page_url, timeout=15.0)
+            response.raise_for_status()
 
-        soup = BeautifulSoup(reserve_response.text, 'html.parser')
-        embedded_data_elm = soup.find(id='embedded-data')
-        assert isinstance(embedded_data_elm, Tag)
-        props = embedded_data_elm.get('data-props')
-        assert isinstance(props, str)
-        embedded_data = json.loads(props)
-        assert isinstance(embedded_data, dict)
-        assert 'program' in embedded_data
-        assert 'site' in embedded_data
-        assert 'relive' in embedded_data['site']
+            soup = BeautifulSoup(response.text, 'html.parser')
+            embedded_data_elm = soup.find(id='embedded-data')
+            assert isinstance(embedded_data_elm, Tag)
+            props = embedded_data_elm.get('data-props')
+            assert isinstance(props, str)
+            embedded_data = json.loads(props)
+            assert isinstance(embedded_data, dict)
+            assert 'program' in embedded_data
+            assert 'site' in embedded_data
+            assert 'relive' in embedded_data['site']
 
-        program_info = NicoLiveProgramInfo(
-            nicoliveProgramId = embedded_data['program']['nicoliveProgramId'],
-            title = embedded_data['program']['title'],
-            description = embedded_data['program']['description'],
-            status = embedded_data['program']['status'],
-            openTime = embedded_data['program']['openTime'],
-            beginTime = embedded_data['program']['beginTime'],
-            vposBaseTime = embedded_data['program']['vposBaseTime'],
-            endTime = embedded_data['program']['endTime'],
-            scheduledEndTime = embedded_data['program']['scheduledEndTime'],
-            webSocketUrl = embedded_data['site']['relive']['webSocketUrl'],
-        )
+            return NicoLiveProgramInfo(
+                nicoliveProgramId = embedded_data['program']['nicoliveProgramId'],
+                title = embedded_data['program']['title'],
+                description = embedded_data['program']['description'],
+                status = embedded_data['program']['status'],
+                openTime = embedded_data['program']['openTime'],
+                beginTime = embedded_data['program']['beginTime'],
+                vposBaseTime = embedded_data['program']['vposBaseTime'],
+                endTime = embedded_data['program']['endTime'],
+                scheduledEndTime = embedded_data['program']['scheduledEndTime'],
+                webSocketUrl = embedded_data['site']['relive']['webSocketUrl'],
+            )
 
+        # ニコニコ生放送の視聴ページから番組情報を取得
+        initial_watch_page_url = f'https://live.nicovideo.jp/watch/{self.nicolive_id}'
+        program_info = await fetch_program_info_from_watch_page(initial_watch_page_url)
+
+        # フォールバック処理:
+        # - 番組が終了している (ENDED)
+        # - 番組終了時刻から15分以上経過している
+        # - self.nicolive_id がニコニコチャンネル ID (chXXXXX) である
+        # これらの条件をすべて満たす場合、ニコニコチャンネルのトップページから現在放送中の lvID を取得し直すことを試みる。
+        # これは、ニコ生側のバグで /watch/chXXXXX へのアクセスが古い (終了済み番組の) lvID にリダイレクトされる場合があることへの対処。
+        if ((program_info.status == 'ENDED') and
+            (datetime.now().timestamp() > program_info.endTime + (15 * 60)) and
+            (self.nicolive_id.startswith('ch'))):  # jikkyo_channel_id の場合もコンストラクタで ch に変換されている
+
+            channel_id_for_fallback = self.nicolive_id
+            self.print(f'[Fallback] Program {program_info.nicoliveProgramId} has ended. Attempting to fetch current live ID for channel {channel_id_for_fallback}.')
+            try:
+                # ニコニコチャンネルのトップページの #live_now セクションから現在放送中の lvID を取得
+                ch_live_page_url = f'https://ch.nicovideo.jp/{channel_id_for_fallback}/live'
+                ch_response = await self.httpx_client.get(ch_live_page_url, timeout=15.0)
+                ch_response.raise_for_status()
+                ch_soup = BeautifulSoup(ch_response.content, 'html.parser')
+                live_now_div = ch_soup.find('div', id='live_now')
+                if live_now_div:
+                    live_link_tag = live_now_div.find('a', href=lambda href: bool(href and href.startswith('https://live.nicovideo.jp/watch/lv')))  # type: ignore
+                    if live_link_tag and isinstance(live_link_tag, Tag):
+                        current_lv_id = cast(str, live_link_tag.get('href')).split('/')[-1]
+                        if current_lv_id and current_lv_id != program_info.nicoliveProgramId:
+                            # 新しい lvID で再度視聴ページ情報を取得
+                            fallback_watch_page_url = f'https://live.nicovideo.jp/watch/{current_lv_id}'
+                            program_info = await fetch_program_info_from_watch_page(fallback_watch_page_url)
+                            self.print(f'[Fallback] Found current live ID ({current_lv_id} / Title: {program_info.title}).')
+                        elif current_lv_id == program_info.nicoliveProgramId:
+                            # 新しい lvID で視聴ページ情報を取得したところ、元の lvID と同じであった場合、以前取得した番組情報をそのまま使用する
+                            self.print(f'[Fallback] Current live ID ({current_lv_id}) is the same as the one already fetched. No update needed.')
+                        else:
+                            # ニコニコチャンネルのトップページの #live_now セクションから現在放送中の lvID を取得できなかった場合
+                            self.print(f'[Fallback] Could not extract current live ID from channel page for {channel_id_for_fallback}.')
+                    else:
+                        # ニコニコチャンネルのトップページの #live_now セクションから現在放送中の lvID を取得できなかった場合
+                        self.print(f'[Fallback] No live link found on channel page in #live_now for {channel_id_for_fallback}.')
+                else:
+                    # ニコニコチャンネルのトップページの #live_now セクションから現在放送中の lvID を取得できなかった場合
+                    self.print(f'[Fallback] No #live_now div found on channel page for {channel_id_for_fallback}.')
+            except Exception as ex:
+                # フォールバック処理中のエラーは握りつぶし、元の program_info を使用する
+                self.print(f'[Fallback] Error during fallback attempt for channel {channel_id_for_fallback}: {ex}')
+                if self.verbose:  # 詳細ログが有効な場合のみトレースバックを出力
+                    self.print(traceback.format_exc())
+                    self.print(Rule(characters='-', style=Style(color='#E33157')))
+
+        # タイムシフト処理:
         # この時点で status が ENDED (放送終了済み) かつ websocketUrl が空文字列の場合、
         # まだタイムシフトが有効であればタイムシフト予約 + 視聴開始を行うことで webSocketUrl が取得できるようになる
         ## なお、放送終了済みの段階でタイムシフト視聴を開始するにはプレミアム会員である必要がある
@@ -735,6 +790,7 @@ class NDGRClient:
 
             # タイムシフト予約を実行
             api_url = f'https://live2.nicovideo.jp/api/v2/programs/{program_info.nicoliveProgramId}/timeshift/reservation'
+            ## X-Frontend-ID ヘッダーを設定しないとアクセスできない
             reserve_response = await self.httpx_client.post(api_url, headers={'x-frontend-id': '9'}, timeout=15.0)
             ## meta.errorCode が "DUPLICATED" の場合は既にタイムシフト予約済みなので無視する
             if reserve_response.status_code != 200 and reserve_response.json().get('meta', {}).get('errorCode') != 'DUPLICATED':
@@ -747,10 +803,12 @@ class NDGRClient:
                 raise ValueError(f'Failed to start timeshift watching. (HTTP Error {start_watching_response.status_code}) Are you premium member?')
 
             # 再度ニコニコ生放送の視聴ページから webSocketUrl を取得
-            program_info = await self.fetchNicoLiveProgramInfo()
+            # ここでは元の self.nicolive_id (chXXXXX の可能性あり) ではなく、確定した program_info.nicoliveProgramId (lvXXXXX) を使う
+            refetched_program_info_url = f'https://live.nicovideo.jp/watch/{program_info.nicoliveProgramId}'
+            program_info = await fetch_program_info_from_watch_page(refetched_program_info_url)
             if program_info.webSocketUrl == '':
-                raise ValueError('Failed to get webSocketUrl after timeshift reservation and start watching.')
-            self.print('Timeshift watching has started.', verbose_log=True)
+                raise ValueError(f'Failed to get webSocketUrl for {program_info.nicoliveProgramId} after timeshift reservation and start watching.')
+            self.print(f'Timeshift watching has started for {program_info.nicoliveProgramId}.', verbose_log=True)
 
         # 上記条件以外で webSocketUrl が空文字列の場合は例外を送出…すると streamComments() での再接続処理に問題が出るため、行わない
         # エラー処理は各自で行う必要がある

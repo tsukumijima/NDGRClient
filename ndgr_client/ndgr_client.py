@@ -201,6 +201,11 @@ class NDGRClient:
         if jikkyo_channel_id.startswith('jk') is False:
             raise ValueError(f'Invalid jikkyo_channel_id: {jikkyo_channel_id}')
 
+        # ニコニコ実況チャンネル ID に対応するニコニコチャンネル ID を取得
+        nicolive_channel_id = cls.JIKKYO_CHANNEL_ID_MAP.get(jikkyo_channel_id)
+        if nicolive_channel_id is None:
+            raise ValueError(f'Invalid jikkyo_channel_id: {jikkyo_channel_id}')
+
         class NicoLiveProgramBroadcastPeriod(TypedDict):
             """
             https://api.cas.nicovideo.jp/v1/services/live/programs/(lv ID) から取得できるニコニコ生放送番組の放送期間の情報
@@ -233,7 +238,7 @@ class NDGRClient:
             candidate_nicolive_program_ids: set[str] = set()
             candidate_nicolive_program_ids.update(provisional_jikkyo_program_id_map.get(jikkyo_channel_id, []))
             ## 放送中番組の ID を取得
-            response = await client.get(f'https://ch.nicovideo.jp/{jikkyo_channel_id}/live', timeout=15.0)
+            response = await client.get(f'https://ch.nicovideo.jp/{nicolive_channel_id}/live', timeout=15.0)
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
             live_now = soup.find('div', id='live_now')
@@ -244,7 +249,7 @@ class NDGRClient:
                     candidate_nicolive_program_ids.add(live_id)
             ## 過去番組の ID をスクレイピングで取得
             for page in range(1, 3):  # 1 ページ目と 2 ページ目を取得
-                response = await client.get(f'https://sp.ch.nicovideo.jp/api/past_lives/?page={page}&channel_id={jikkyo_channel_id}', timeout=15.0)
+                response = await client.get(f'https://sp.ch.nicovideo.jp/api/past_lives/?page={page}&channel_id={nicolive_channel_id}', timeout=15.0)
                 if response.status_code != 200:
                     if page == 1:
                         # 1 ページは必ず取得できるはずなので、取得できなかった場合はニコ生側で何らかの問題が発生している

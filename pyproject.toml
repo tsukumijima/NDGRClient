@@ -13,9 +13,9 @@ generate-proto = "find proto -name '*.proto' | xargs protoc --proto_path=proto -
 [tool.poetry.dependencies]
 python = ">=3.11,<4.0"
 beautifulsoup4 = ">=4.12.3"
-httpx = ">=0.27.0"
 lxml = ">=5.2.2"
 lxml-stubs = ">=0.5.1"
+niquests = "^3.17.0"
 protobuf = "<5.28.0"  # protoc のバージョンに合わせないと警告が出る
 pydantic = ">=2.8.2"
 typer = {version = ">=0.12.3", extras = ["all"]}

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import httpx
+import niquests
+from niquests.cookies import RequestsCookieJar
 import lxml.etree as ET
 import re
 import traceback
@@ -110,8 +111,9 @@ class NDGRClient:
         self.show_log = console_output
         self.log_path = log_path
 
-        # httpx の非同期 HTTP クライアントのインスタンスを作成
-        self.httpx_client = httpx.AsyncClient(headers=self.HTTP_HEADERS, follow_redirects=True)
+        # niquests の非同期 HTTP クライアントのインスタンスを作成
+        # HTTP/3 はデフォルトで有効化されているが、念のため明示する
+        self.http_client = niquests.AsyncSession(headers=self.HTTP_HEADERS, disable_http3=False)
 
 
     @property
@@ -119,7 +121,7 @@ class NDGRClient:
         """
         ニコニコアカウントがログイン済みかどうかを返す
         """
-        return 'user_session' in self.httpx_client.cookies
+        return 'user_session' in cast(RequestsCookieJar, self.http_client.cookies)
 
 
     async def login(self, mail: str | None = None, password: str | None = None, cookies: dict[str, str] | None = None) -> dict[str, str] | None:
@@ -138,7 +140,7 @@ class NDGRClient:
 
         Raises:
             ValueError: mail と password の両方、または cookies のいずれかが指定されていない場合
-            httpx.HTTPStatusError: ログインリクエストが失敗した場合
+            niquests.exceptions.HTTPError: ログインリクエストが失敗した場合
         """
 
         if (mail is None or password is None) and cookies is None:
@@ -146,11 +148,12 @@ class NDGRClient:
 
         # Cookie 辞書が指定されたとき、HTTP クライアントに Cookie を設定
         if cookies is not None:
+            cookie_jar = cast(RequestsCookieJar, self.http_client.cookies)
             for key, value in cookies.items():
-                self.httpx_client.cookies.set(key, value, domain='.nicovideo.jp', path='/')
+                cookie_jar.set(key, value, domain='.nicovideo.jp', path='/')
 
             # https://account.nicovideo.jp/login にアクセスして x-niconico-id ヘッダーがセットされているか確認
-            response = await self.httpx_client.get('https://account.nicovideo.jp/login', timeout=15.0)
+            response = await self.http_client.get('https://account.nicovideo.jp/login', timeout=15.0)
             response.raise_for_status()
             if 'x-niconico-id' not in response.headers:
                 return None
@@ -159,9 +162,9 @@ class NDGRClient:
         else:
             try:
                 # ログイン処理に悪影響を及ぼさないよう、既存の Cookie を削除
-                self.httpx_client.cookies.clear()
+                self.http_client.cookies.clear()
                 # この API にアクセスすると Cookie (user_session) が HTTP クライアントにセットされる
-                response = await self.httpx_client.post('https://account.nicovideo.jp/api/v1/login', data={
+                response = await self.http_client.post('https://account.nicovideo.jp/api/v1/login', data={
                     'mail': mail,
                     'password': password,
                 }, timeout=15.0)
@@ -171,14 +174,15 @@ class NDGRClient:
                     return None
                 self.print(f'Login successful. Niconico User ID: {response.headers["x-niconico-id"]}', verbose_log=True)
                 self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
-            except httpx.HTTPStatusError:
+            except niquests.exceptions.HTTPError:
                 self.print('Error during login:')
                 self.print(traceback.format_exc())
                 self.print(Rule(characters='-', style=Style(color='#E33157')))
                 raise
 
         # 現在 HTTP クライアントにセットされている Cookie を返す
-        return dict(self.httpx_client.cookies.items())
+        cookie_items = cast(RequestsCookieJar, self.http_client.cookies).items()
+        return {k: v for k, v in cookie_items if v is not None}
 
 
     @classmethod
@@ -195,7 +199,7 @@ class NDGRClient:
 
         Raises:
             ValueError: ニコニコ実況のチャンネル ID が指定されていない場合
-            httpx.HTTPStatusError: ニコニコ API へのリクエストに失敗した場合
+            niquests.exceptions.HTTPError: ニコニコ API へのリクエストに失敗した場合
         """
 
         if jikkyo_channel_id.startswith('jk') is False:
@@ -231,8 +235,8 @@ class NDGRClient:
             'jk211': ['lv345479998', 'lv345500347', 'lv345514147', 'lv345514260', 'lv345514593'],
         }
 
-        # クラスメソッドから self.httpx_client にはアクセスできないため、新しい httpx.AsyncClient を作成している
-        async with httpx.AsyncClient(headers=cls.HTTP_HEADERS, follow_redirects=True) as client:
+        # クラスメソッドから self.http_client にはアクセスできないため、新しい niquests.AsyncSession を作成している
+        async with niquests.AsyncSession(headers=cls.HTTP_HEADERS, disable_http3=False) as client:
 
             # まずは候補となるニコニコ生放送番組 ID を収集
             candidate_nicolive_program_ids: set[str] = set()
@@ -240,7 +244,8 @@ class NDGRClient:
             ## 放送中番組の ID を取得
             response = await client.get(f'https://ch.nicovideo.jp/{nicolive_channel_id}/live', timeout=15.0)
             response.raise_for_status()
-            soup = BeautifulSoup(response.content, 'html.parser')
+            response_content = response.content or b''
+            soup = BeautifulSoup(response_content, 'html.parser')
             live_now = soup.find('div', id='live_now')
             if live_now:
                 live_link = live_now.find('a', href=lambda href: bool(href and href.startswith('https://live.nicovideo.jp/watch/lv')))  # type: ignore
@@ -257,7 +262,8 @@ class NDGRClient:
                     else:
                         # 2 ページ目が取得できなかった場合はページを分けるほど過去の番組情報がないと考えられるため、ループを抜ける
                         break
-                soup = BeautifulSoup(response.content, 'html.parser')
+                past_lives_content = response.content or b''
+                soup = BeautifulSoup(past_lives_content, 'html.parser')
                 for a_tag in soup.find_all('a', href=True):
                     href = a_tag['href']
                     if 'https://live.nicovideo.jp/watch/' in href:
@@ -309,7 +315,7 @@ class NDGRClient:
             NDGRComment: NDGR メッセージサーバーから受信したコメント
 
         Raises:
-            httpx.HTTPStatusError: HTTP リクエストが失敗した場合
+            niquests.exceptions.HTTPError: HTTP リクエストが失敗した場合
             AssertionError: 解析に失敗した場合
             ValueError: 既に放送を終了した番組に対してストリーミングを開始しようとした場合
         """
@@ -546,7 +552,7 @@ class NDGRClient:
             list[NDGRComment]: 過去に投稿されたコメントのリスト (投稿日時昇順)
 
         Raises:
-            httpx.HTTPStatusError: HTTP リクエストが失敗した場合
+            niquests.exceptions.HTTPError: HTTP リクエストが失敗した場合
             AssertionError: 解析に失敗した場合
         """
 
@@ -640,10 +646,13 @@ class NDGRClient:
         while True:
             self.print(f'Retrieving {backward_api_uri} ...', verbose_log=True)
             self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
-            response = await self.httpx_client.get(backward_api_uri, timeout=15.0)
+            response = await self.http_client.get(backward_api_uri, timeout=15.0)
             response.raise_for_status()
+            response_content = response.content
+            if response_content is None:
+                raise ValueError('Response has no content.')
             packed_segment = chat.PackedSegment()
-            packed_segment.ParseFromString(response.content)
+            packed_segment.ParseFromString(response_content)
 
             # PackedSegment.messages には複数の ChunkedMessage が格納されている
             ## この ChunkedMessage は取得時点でコメント投稿時刻昇順でソートされている
@@ -700,7 +709,7 @@ class NDGRClient:
             NicoLiveProgramInfo: 解析されたニコニコ生放送の番組情報
 
         Raises:
-            httpx.HTTPStatusError: HTTP リクエストが失敗した場合
+            niquests.exceptions.HTTPError: HTTP リクエストが失敗した場合
             ValueError: タイムシフト視聴を開始できない場合
             AssertionError: 解析に失敗した場合
         """
@@ -709,10 +718,11 @@ class NDGRClient:
             """
             指定されたニコニコ生放送の視聴ページ URL から番組情報を取得する内部ヘルパー関数。
             """
-            response = await self.httpx_client.get(watch_page_url, timeout=15.0)
+            response = await self.http_client.get(watch_page_url, timeout=15.0)
             response.raise_for_status()
 
-            soup = BeautifulSoup(response.text, 'html.parser')
+            response_text = response.text or ''
+            soup = BeautifulSoup(response_text, 'html.parser')
             embedded_data_elm = soup.find(id='embedded-data')
             assert isinstance(embedded_data_elm, Tag)
             props = embedded_data_elm.get('data-props')
@@ -755,9 +765,10 @@ class NDGRClient:
             try:
                 # ニコニコチャンネルのトップページの #live_now セクションから現在放送中の lvID を取得
                 ch_live_page_url = f'https://ch.nicovideo.jp/{channel_id_for_fallback}/live'
-                ch_response = await self.httpx_client.get(ch_live_page_url, timeout=15.0)
+                ch_response = await self.http_client.get(ch_live_page_url, timeout=15.0)
                 ch_response.raise_for_status()
-                ch_soup = BeautifulSoup(ch_response.content, 'html.parser')
+                ch_response_content = ch_response.content or b''
+                ch_soup = BeautifulSoup(ch_response_content, 'html.parser')
                 live_now_div = ch_soup.find('div', id='live_now')
                 if live_now_div:
                     live_link_tag = live_now_div.find('a', href=lambda href: bool(href and href.startswith('https://live.nicovideo.jp/watch/lv')))  # type: ignore
@@ -797,14 +808,14 @@ class NDGRClient:
             # タイムシフト予約を実行
             api_url = f'https://live2.nicovideo.jp/api/v2/programs/{program_info.nicoliveProgramId}/timeshift/reservation'
             ## X-Frontend-ID ヘッダーを設定しないとアクセスできない
-            reserve_response = await self.httpx_client.post(api_url, headers={'x-frontend-id': '9'}, timeout=15.0)
+            reserve_response = await self.http_client.post(api_url, headers={'x-frontend-id': '9'}, timeout=15.0)
             ## meta.errorCode が "DUPLICATED" の場合は既にタイムシフト予約済みなので無視する
             if reserve_response.status_code != 200 and reserve_response.json().get('meta', {}).get('errorCode') != 'DUPLICATED':
                 raise ValueError(f'Failed to reserve timeshift. (HTTP Error {reserve_response.status_code}) Are you premium member?')
 
             # タイムシフト視聴を開始
             ## この API の実行後、ニコニコ生放送の視聴ページから webSocketUrl が取得できるようになる
-            start_watching_response = await self.httpx_client.patch(api_url, headers={'x-frontend-id': '9'}, timeout=15.0)
+            start_watching_response = await self.http_client.patch(api_url, headers={'x-frontend-id': '9'}, timeout=15.0)
             if start_watching_response.status_code != 200:
                 raise ValueError(f'Failed to start timeshift watching. (HTTP Error {start_watching_response.status_code}) Are you premium member?')
 
@@ -836,7 +847,7 @@ class NDGRClient:
             str: 当該番組に対応する NDGR View API の URI
 
         Raises:
-            httpx.HTTPStatusError: HTTP リクエストが失敗した場合
+            niquests.exceptions.HTTPError: HTTP リクエストが失敗した場合
             AssertionError: 解析に失敗した場合
         """
 
@@ -966,13 +977,17 @@ class NDGRClient:
                 ## したがって通常 33 秒以上 HTTP 接続が持続することはあり得ないため、少し余裕を持たせて 40 秒の read タイムアウトを設定している
                 ## 通常は発生し得ないが、デバイスのネットワーク環境が悪い or メッセージサーバー側の動作不良などの要因で
                 ## ごく稀に何もデータが降ってこないのに HTTP 接続だけずっと維持される問題への対応
-                async with self.httpx_client.stream('GET', uri, timeout=httpx.Timeout(15.0, read=40.0)) as response:
-
+                response = await self.http_client.get(uri, stream=True, timeout=(15.0, 40.0))
+                try:
                     # HTTP エラー発生時は例外を送出してリトライさせる
                     response.raise_for_status()
 
                     # Protobuf チャンクを読み取る
-                    async for chunk in response.aiter_bytes():
+                    # chunk_size はデフォルトの -1 (バッファリングなし / データ到着次第即座に返す) を使用する
+                    ## chunk_size に大きな値を指定すると、そのバイト数分のデータが溜まるまでブロックされ、
+                    ## リアルタイムストリーミングで深刻な遅延が発生する
+                    async for chunk in await response.iter_content():
+                        assert isinstance(chunk, bytes)
                         protobuf_reader.addNewChunk(chunk)
                         while True:
                             message = protobuf_reader.unshiftChunk()
@@ -983,6 +998,8 @@ class NDGRClient:
 
                             # ジェネレータとして読み取った Protobuf を返す
                             yield protobuf
+                finally:
+                    await response.close()
 
                 # Protobuf ストリームを最後まで読み切ったら、ループを抜ける
                 self.print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Fetched {api_name}.', verbose_log=True)
@@ -991,7 +1008,7 @@ class NDGRClient:
                 break
 
             # HTTP 接続エラー発生時、しばらく待ってからリトライを試みる
-            except (httpx.HTTPError, httpx.StreamError):
+            except niquests.exceptions.RequestException:
                 if attempt < max_retries - 1:
                     self.print(f'Error fetching {api_name}. Retrying in {retry_delay} seconds...')
                     self.print(traceback.format_exc())

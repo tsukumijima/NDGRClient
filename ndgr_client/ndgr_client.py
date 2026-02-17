@@ -112,8 +112,10 @@ class NDGRClient:
         self.log_path = log_path
 
         # niquests の非同期 HTTP クライアントのインスタンスを作成
-        # HTTP/3 はデフォルトで有効化されているが、念のため明示する
-        self.http_client = niquests.AsyncSession(headers=self.HTTP_HEADERS, disable_http3=False)
+        # urllib3-future v2.15.903 の HTTP/3 (QUIC) 実装には、__exchange_until() 内で空データ受信時に
+        # self._protocol が None にもかかわらず connection_lost() を呼ぶバグがある (HTTP/3 プロトコルに eof_received がないため)
+        # 元の httpx.AsyncClient も HTTP/3 には対応しておらず HTTP/2 以下で動作していたため、HTTP/3 を無効化しても機能的な退行はない
+        self.http_client = niquests.AsyncSession(headers=self.HTTP_HEADERS, disable_http3=True)
 
 
     @property
@@ -236,7 +238,7 @@ class NDGRClient:
         }
 
         # クラスメソッドから self.http_client にはアクセスできないため、新しい niquests.AsyncSession を作成している
-        async with niquests.AsyncSession(headers=cls.HTTP_HEADERS, disable_http3=False) as client:
+        async with niquests.AsyncSession(headers=cls.HTTP_HEADERS, disable_http3=True) as client:
 
             # まずは候補となるニコニコ生放送番組 ID を収集
             candidate_nicolive_program_ids: set[str] = set()

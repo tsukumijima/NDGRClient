@@ -42,20 +42,20 @@ class NDGRClient:
     ・NDGR Backward API : https://mpn.live.nicovideo.jp/data/backward/v4/...
     """
 
-    # HTTP ヘッダー を Chrome 126 に偽装
+    # HTTP ヘッダー を Chrome 144 に偽装
     HTTP_HEADERS = {
         'accept': '*/*',
         'accept-encoding': 'gzip, deflate, br',
         'accept-language': 'ja',
         'origin': 'https://live.nicovideo.jp',
         'referer': 'https://live.nicovideo.jp/',
-        'sec-ch-ua': '"Chromium";v="126", "Google Chrome";v="126", "Not-A.Brand";v="99"',
+        'sec-ch-ua': '"Not(A:Brand";v="8", "Chromium";v="144", "Google Chrome";v="144"',
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': '"Windows"',
         'sec-fetch-dest': 'empty',
         'sec-fetch-mode': 'cors',
         'sec-fetch-site': 'same-site',
-        'user-agent': f'Mozilla/5.0 (Windows NT 15.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 NDGRClient/{__version__}',
+        'user-agent': f'Mozilla/5.0 (Windows NT 15.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 NDGRClient/{__version__}',
     }
 
     # 旧来の実況チャンネル ID とニコニコチャンネル ID のマッピング

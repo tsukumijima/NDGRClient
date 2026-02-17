@@ -1,6 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
+import anyio
 import typer
 from rich import print
 from rich.rule import Rule
@@ -69,9 +70,11 @@ async def download(
         comment_counts[jid] = len(comments)
 
         # output_dir に {jid}.nicojk として保存
-        output_dir.mkdir(parents=True, exist_ok=True)
-        with open(output_dir / f'{jid}.nicojk', mode='w', encoding='utf-8') as f:
-            f.write(NDGRClient.convertToXMLString(comments))
+        # anyio.Path を使って非同期でファイル I/O を行い、イベントループのブロックを回避する
+        async_output_dir = anyio.Path(output_dir)
+        await async_output_dir.mkdir(parents=True, exist_ok=True)
+        async with await (async_output_dir / f'{jid}.nicojk').open(mode='w', encoding='utf-8') as f:
+            await f.write(NDGRClient.convertToXMLString(comments))
         print(f'Total comments for {jid}: {comment_counts[jid]}')
         print(f'Saved to {output_dir / f"{jid}.nicojk"}.')
         print(Rule(characters='=', style=Style(color='#E33157')))

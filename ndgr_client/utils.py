@@ -21,9 +21,12 @@ closer to this than a decorator per command.
 
 import asyncio
 import inspect
+from collections.abc import Callable
 from functools import partial, wraps
+from typing import Any, TypeVar
+
 from typer import Typer
-from typing import Any, Callable, TypeVar
+
 
 F = TypeVar('F', bound=Callable[..., Any])
 

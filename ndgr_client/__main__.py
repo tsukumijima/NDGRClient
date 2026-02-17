@@ -1,11 +1,10 @@
-
-import typer
 from datetime import datetime
 from pathlib import Path
+
+import typer
 from rich import print
 from rich.rule import Rule
 from rich.style import Style
-from typing import Union
 
 from ndgr_client import NDGRClient, __version__
 from ndgr_client.utils import AsyncTyper
@@ -13,11 +12,12 @@ from ndgr_client.utils import AsyncTyper
 
 app = AsyncTyper(help='NDGRClient: Nicolive NDGR Message Server Client Library')
 
+
 @app.command(help='Stream comments from NDGR server.')
 async def stream(
     nicolive_program_id: str = typer.Argument(help='Nicolive program ID (ex: jk1, jk9, jk211 / lv345479988)'),
-    mail: Union[str, None] = typer.Option(default=None, help='Mail address'),
-    password: Union[str, None] = typer.Option(default=None, help='Password'),
+    mail: str | None = typer.Option(default=None, help='Mail address'),
+    password: str | None = typer.Option(default=None, help='Password'),
     verbose: bool = typer.Option(default=False, help='Verbose output'),
 ):
     print(Rule(characters='-', style=Style(color='#E33157')))
@@ -32,7 +32,9 @@ async def stream(
     # コメントをエンドレスでストリーミング開始
     async for comment in ndgr_client.streamComments():
         if verbose is True:
-            print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Comment Received. [grey70](ID: {comment.id})[/grey70]')
+            print(
+                f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Comment Received. [grey70](ID: {comment.id})[/grey70]'
+            )
         print(str(comment))
         print(Rule(characters='-', style=Style(color='#E33157')))
 
@@ -41,8 +43,8 @@ async def stream(
 async def download(
     nicolive_program_id: str = typer.Argument(help='Nicolive program ID (ex: jk1, jk9, jk211 / lv345479988) or "all"'),
     output_dir: Path = typer.Option(default=Path('.'), help='Output directory'),
-    mail: Union[str, None] = typer.Option(default=None, help='Mail address'),
-    password: Union[str, None] = typer.Option(default=None, help='Password'),
+    mail: str | None = typer.Option(default=None, help='Mail address'),
+    password: str | None = typer.Option(default=None, help='Password'),
     verbose: bool = typer.Option(default=False, help='Verbose output'),
 ):
     print(Rule(characters='=', style=Style(color='#E33157')))

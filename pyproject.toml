@@ -7,6 +7,8 @@ license = "MIT"
 readme = "Readme.md"
 
 [tool.taskipy.tasks]
+lint = "ruff check --fix ."
+format = "ruff format ."
 # 生成した後に from dwango.nicolive を from ndgr_client.proto.dwango.nicolive に一括置換する
 generate-proto = "find proto -name '*.proto' | xargs protoc --proto_path=proto --python_out=ndgr_client/proto --mypy_out=ndgr_client/proto && find ndgr_client/proto -name '*.py' -o -name '*.pyi' | xargs sed -i '' 's/ dwango\\.nicolive/ ndgr_client.proto.dwango.nicolive/g'"
 
@@ -15,7 +17,7 @@ python = ">=3.11,<4.0"
 beautifulsoup4 = ">=4.12.3"
 lxml = ">=5.2.2"
 lxml-stubs = ">=0.5.1"
-niquests = "^3.17.0"
+niquests = ">=3.17.0"
 protobuf = "<5.28.0"  # protoc のバージョンに合わせないと警告が出る
 pydantic = ">=2.8.2"
 typer = {version = ">=0.12.3", extras = ["all"]}
@@ -23,10 +25,48 @@ typing-extensions = ">=4.12.2"
 websockets = ">=12.0"
 
 [tool.poetry.group.dev.dependencies]
-mypy-protobuf = "^3.6.0"
-protoc-wheel-0 = "^27.0"
-taskipy = "^1.13.0"
+mypy-protobuf = ">=3.6.0"
+protoc-wheel-0 = ">=27.0"
+ruff = ">=0.9.1"
+taskipy = ">=1.13.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+# 1行の長さを最大120文字に設定
+line-length = 120
+# インデントの幅を4スペースに設定
+indent-width = 4
+# Python 3.11 を利用する
+target-version = "py311"
+# ndgr_client/proto/ ディレクトリは対象から除外する
+extend-exclude = ["ndgr_client/proto/"]
+
+[tool.ruff.lint]
+# flake8, pycodestyle, pyupgrade, isort, Ruff 固有のルールを使う
+select = ["F", "E", "W", "UP", "I", "RUF", "TID251"]
+ignore = [
+    "E501",    # 1行の長さを超えている場合の警告を抑制
+    "E731",    # Do not assign a `lambda` expression, use a `def` を抑制
+    "RUF001",  # 全角記号など `ambiguous unicode character` も使いたいため
+    "RUF002",  # 全角記号など `ambiguous unicode character` も使いたいため
+    "RUF003",  # 全角記号など `ambiguous unicode character` も使いたいため
+    "RUF012",
+]
+
+[tool.ruff.lint.isort]
+# インポートブロックの後に2行空ける
+lines-after-imports = 2
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# Python 3.11 + Pydantic で TypedDict を扱う際は、typing_extensions.TypedDict を使う必要がある
+# ref: https://github.com/langchain-ai/langgraph/pull/2910
+"typing.TypedDict".msg = "Use typing_extensions.TypedDict instead."
+
+[tool.ruff.format]
+# シングルクオートを使う
+quote-style = "single"
+# インデントにはスペースを使う
+indent-style = "space"

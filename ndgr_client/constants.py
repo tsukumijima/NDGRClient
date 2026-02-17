@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel
-from typing import Literal, Union
 
 
 class NicoLiveProgramInfo(BaseModel):
@@ -10,6 +11,7 @@ class NicoLiveProgramInfo(BaseModel):
     ニコニコ生放送の視聴ページから取得した embedded-data のうち、有用そうな情報
     フィールド名は embedded-data 内の各値のキー名と同一 (そのため敢えて camelCase のままにしている)
     """
+
     # 生放送の番組 ID (ex: lv345479473)
     nicoliveProgramId: str
     # 生放送の番組タイトル
@@ -37,6 +39,7 @@ class NDGRComment(BaseModel):
     NDGR メッセージサーバーから返される Protobuf 形式のコメントデータのうち、有用そうな情報
     フィールド名は基本的に Protobuf の各値のキー名と同一
     """
+
     # コメント ID / ex: "EhgKEgmBfWBX18SQARFaOaNDSRHkkhCy-h0"
     id: str
     # コメント日時
@@ -61,13 +64,31 @@ class NDGRComment(BaseModel):
     # コメントの描画サイズ
     size: Literal['medium', 'small', 'big']
     # コメントの描画色
-    color: Union[
+    color: (
         Literal[
-            'white', 'red', 'pink', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'black',
-            'white2', 'red2', 'pink2', 'orange2', 'yellow2', 'green2', 'cyan2', 'blue2', 'purple2', 'black2'
-        ],
-        NDGRCommentFullColor
-    ]
+            'white',
+            'red',
+            'pink',
+            'orange',
+            'yellow',
+            'green',
+            'cyan',
+            'blue',
+            'purple',
+            'black',
+            'white2',
+            'red2',
+            'pink2',
+            'orange2',
+            'yellow2',
+            'green2',
+            'cyan2',
+            'blue2',
+            'purple2',
+            'black2',
+        ]
+        | NDGRCommentFullColor
+    )
     # コメントのフォントスタイル
     font: Literal['defont', 'mincho', 'gothic']
     # コメントの不透明度
@@ -94,6 +115,7 @@ class XMLCompatibleComment(BaseModel):
     """
     ニコニコ旧来の XML 互換コメントデータ
     """
+
     # コメントのスレッド ID
     thread: str
     # コメント番号（コメ番）
@@ -104,10 +126,12 @@ class XMLCompatibleComment(BaseModel):
     date: int
     # コメント投稿時間の UNIX タイムスタンプの小数点以下の値 (マイクロ秒単位の整数)
     date_usec: int
+
     # date と date_usec を合算したコメント投稿時間の UNIX タイムスタンプ (浮動小数点秒単位)
     @property
     def date_with_usec(self) -> float:
         return self.date + (self.date_usec / 1000000)
+
     # ユーザー ID（コマンドに 184 が指定されている場合は匿名化される）
     user_id: str
     # コメントのコマンド（184, red naka big など）

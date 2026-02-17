@@ -1,4 +1,3 @@
-
 from rich import print
 
 
@@ -9,14 +8,12 @@ class ProtobufStreamReader:
     ref: https://github.com/rinsuki-lab/ndgr-reader/blob/main/src/protobuf-stream-reader.ts
     """
 
-
     def __init__(self):
         """
         ProtobufStreamReader のコンストラクタ
         """
 
         self.buffer = bytearray()
-
 
     def addNewChunk(self, chunk: bytes) -> None:
         """
@@ -27,7 +24,6 @@ class ProtobufStreamReader:
         """
 
         self.buffer.extend(chunk)
-
 
     def __readVarInt(self) -> tuple[int, int] | None:
         """
@@ -53,7 +49,6 @@ class ProtobufStreamReader:
 
         return offset, result
 
-
     def unshiftChunk(self) -> bytes | None:
         """
         バッファから次のメッセージを抽出する
@@ -72,6 +67,6 @@ class ProtobufStreamReader:
             print(f'needs {offset + varint} bytes, but only {len(self.buffer)} bytes')
             return None
 
-        message = bytes(self.buffer[offset:offset + varint])
-        del self.buffer[:offset + varint]
+        message = bytes(self.buffer[offset : offset + varint])
+        del self.buffer[: offset + varint]
         return message

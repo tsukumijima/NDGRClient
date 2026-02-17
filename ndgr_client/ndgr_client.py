@@ -1,33 +1,34 @@
-
 from __future__ import annotations
 
 import asyncio
 import json
-import niquests
-from niquests.cookies import RequestsCookieJar
-import lxml.etree as ET
 import re
 import traceback
-import websockets
-from bs4 import BeautifulSoup, Tag
-from collections.abc import Sequence
+from collections.abc import AsyncGenerator, Sequence
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any, Literal, TypeVar, cast
+
+import lxml.etree as ET
+import niquests
+import websockets
+from bs4 import BeautifulSoup, Tag
+from niquests.cookies import RequestsCookieJar
 from rich import print
 from rich.rule import Rule
 from rich.style import Style
-from typing import Any, AsyncGenerator, cast, Literal, Type, TypedDict, TypeVar
+from typing_extensions import TypedDict
 
 from ndgr_client import __version__
-from ndgr_client.protobuf_stream_reader import ProtobufStreamReader
-from ndgr_client.proto.dwango.nicolive.chat.data import atoms_pb2 as atoms
-from ndgr_client.proto.dwango.nicolive.chat.service.edge import payload_pb2 as chat
 from ndgr_client.constants import (
     NDGRComment,
     NDGRCommentFullColor,
     NicoLiveProgramInfo,
     XMLCompatibleComment,
 )
+from ndgr_client.proto.dwango.nicolive.chat.data import atoms_pb2 as atoms
+from ndgr_client.proto.dwango.nicolive.chat.service.edge import payload_pb2 as chat
+from ndgr_client.protobuf_stream_reader import ProtobufStreamReader
 
 
 class NDGRClient:
@@ -73,8 +74,9 @@ class NDGRClient:
         'jk211': 'ch2646846',
     }
 
-
-    def __init__(self, nicolive_id: str, verbose: bool = False, console_output: bool = False, log_path: Path | None = None) -> None:
+    def __init__(
+        self, nicolive_id: str, verbose: bool = False, console_output: bool = False, log_path: Path | None = None
+    ) -> None:
         """
         NDGRClient のコンストラクタ
         nicolive_id にニコニコ実況のチャンネル ID を渡したときは、
@@ -116,7 +118,6 @@ class NDGRClient:
         ## niquests の HTTP/3 実装はストリーミング接続周りにバグがあるようで現状安定運用に向かないため、無効化する
         self.http_client = niquests.AsyncSession(headers=self.HTTP_HEADERS, retries=1, disable_http3=True)
 
-
     @property
     def is_logged_in(self) -> bool:
         """
@@ -124,8 +125,9 @@ class NDGRClient:
         """
         return 'user_session' in cast(RequestsCookieJar, self.http_client.cookies)
 
-
-    async def login(self, mail: str | None = None, password: str | None = None, cookies: dict[str, str] | None = None) -> dict[str, str] | None:
+    async def login(
+        self, mail: str | None = None, password: str | None = None, cookies: dict[str, str] | None = None
+    ) -> dict[str, str] | None:
         """
         ニコニコアカウントにログインするか、既存の Cookie を HTTP クライアントに設定する
         基本初回ログイン時以外は一度取得した Cookie を使い回して無駄なログインセッションが作成されるのを防ぐべき
@@ -165,10 +167,14 @@ class NDGRClient:
                 # ログイン処理に悪影響を及ぼさないよう、既存の Cookie を削除
                 self.http_client.cookies.clear()
                 # この API にアクセスすると Cookie (user_session) が HTTP クライアントにセットされる
-                response = await self.http_client.post('https://account.nicovideo.jp/api/v1/login', data={
-                    'mail': mail,
-                    'password': password,
-                }, timeout=15.0)
+                response = await self.http_client.post(
+                    'https://account.nicovideo.jp/api/v1/login',
+                    data={
+                        'mail': mail,
+                        'password': password,
+                    },
+                    timeout=15.0,
+                )
                 response.raise_for_status()
                 # x-niconico-id ヘッダーがセットされていない場合はログインに失敗している
                 if 'x-niconico-id' not in response.headers:
@@ -184,7 +190,6 @@ class NDGRClient:
         # 現在 HTTP クライアントにセットされている Cookie を返す
         cookie_items = cast(RequestsCookieJar, self.http_client.cookies).items()
         return {k: v for k, v in cookie_items if v is not None}
-
 
     @classmethod
     async def getProgramIDsOnDate(cls, jikkyo_channel_id: str, date: date) -> list[str]:
@@ -215,6 +220,7 @@ class NDGRClient:
             """
             https://api.cas.nicovideo.jp/v1/services/live/programs/(lv ID) から取得できるニコニコ生放送番組の放送期間の情報
             """
+
             nicoliveProgramId: str
             beginAt: datetime
             endAt: datetime
@@ -234,13 +240,12 @@ class NDGRClient:
             'jk8'  : ['lv345479996', 'lv345500340', 'lv345514141', 'lv345514253', 'lv345514581'],
             'jk9'  : ['lv345479997', 'lv345500342', 'lv345514145', 'lv345514257', 'lv345514587'],
             'jk211': ['lv345479998', 'lv345500347', 'lv345514147', 'lv345514260', 'lv345514593'],
-        }
+        }  # fmt: skip
 
         # クラスメソッドから self.http_client にはアクセスできないため、新しい niquests.AsyncSession を作成している
         ## retries=1 を指定して HTTP/2 GOAWAY (graceful shutdown) 受信時の自動再接続を有効にする (httpx と同等の1回リトライ)
         ## niquests の HTTP/3 実装はストリーミング接続周りにバグがあるようで現状安定運用に向かないため、無効化する
         async with niquests.AsyncSession(headers=cls.HTTP_HEADERS, retries=1, disable_http3=True) as client:
-
             # まずは候補となるニコニコ生放送番組 ID を収集
             candidate_nicolive_program_ids: set[str] = set()
             candidate_nicolive_program_ids.update(provisional_jikkyo_program_id_map.get(jikkyo_channel_id, []))
@@ -251,13 +256,18 @@ class NDGRClient:
             soup = BeautifulSoup(response_content, 'html.parser')
             live_now = soup.find('div', id='live_now')
             if live_now:
-                live_link = live_now.find('a', href=lambda href: bool(href and href.startswith('https://live.nicovideo.jp/watch/lv')))  # type: ignore
+                live_link = live_now.find(
+                    'a', href=lambda href: bool(href and href.startswith('https://live.nicovideo.jp/watch/lv'))
+                )
                 if live_link:
-                    live_id = cast(str, cast(Tag, live_link).get('href')).split('/')[-1]
+                    live_id = cast(str, live_link.get('href')).split('/')[-1]
                     candidate_nicolive_program_ids.add(live_id)
             ## 過去番組の ID をスクレイピングで取得
             for page in range(1, 3):  # 1 ページ目と 2 ページ目を取得
-                response = await client.get(f'https://sp.ch.nicovideo.jp/api/past_lives/?page={page}&channel_id={nicolive_channel_id}', timeout=15.0)
+                response = await client.get(
+                    f'https://sp.ch.nicovideo.jp/api/past_lives/?page={page}&channel_id={nicolive_channel_id}',
+                    timeout=15.0,
+                )
                 if response.status_code != 200:
                     if page == 1:
                         # 1 ページは必ず取得できるはずなので、取得できなかった場合はニコ生側で何らかの問題が発生している
@@ -270,12 +280,15 @@ class NDGRClient:
                 for a_tag in soup.find_all('a', href=True):
                     href = a_tag['href']
                     if 'https://live.nicovideo.jp/watch/' in href:
-                        candidate_nicolive_program_ids.add(href.split('/')[-1])
+                        candidate_nicolive_program_ids.add(cast(str, href).split('/')[-1])
 
             # 候補となるニコニコ生放送番組の放送期間を取得
             broadcast_periods: list[NicoLiveProgramBroadcastPeriod] = []
             for program_id in candidate_nicolive_program_ids:
-                response = await client.get(f'https://api.cas.nicovideo.jp/v1/services/live/programs/{program_id}', timeout=15.0)
+                response = await client.get(
+                    f'https://api.cas.nicovideo.jp/v1/services/live/programs/{program_id}',
+                    timeout=15.0,
+                )
                 # ごく稀にキャンセルされたなどで存在が抹消された番組もリストに含まれる場合があるので、その場合はスキップ
                 ## 例: lv346334901
                 if response.status_code == 404:
@@ -291,22 +304,22 @@ class NDGRClient:
                 # タイムシフト非公開の番組からはコメントを取得できないのでスキップ
                 if not response_json['data']['timeshift']['enabled']:
                     continue
-                broadcast_periods.append({
-                    'nicoliveProgramId': program_id,
-                    'beginAt': datetime.fromisoformat(response_json['data']['onAirTime']['beginAt']),
-                    'endAt': datetime.fromisoformat(response_json['data']['onAirTime']['endAt']),
-                })
+                broadcast_periods.append(
+                    {
+                        'nicoliveProgramId': program_id,
+                        'beginAt': datetime.fromisoformat(response_json['data']['onAirTime']['beginAt']),
+                        'endAt': datetime.fromisoformat(response_json['data']['onAirTime']['endAt']),
+                    }
+                )
 
         # 指定された日付に放送されている番組をフィルタリング
         broadcast_periods = [
-            period for period in broadcast_periods
-            if period['beginAt'].date() <= date <= period['endAt'].date()
+            period for period in broadcast_periods if period['beginAt'].date() <= date <= period['endAt'].date()
         ]
 
         # ID を放送開始日時が早い順に並べ替えてから返す
         broadcast_periods.sort(key=lambda x: x['beginAt'])
         return [period['nicoliveProgramId'] for period in broadcast_periods]
-
 
     async def streamComments(self) -> AsyncGenerator[NDGRComment, None]:
         """
@@ -334,11 +347,17 @@ class NDGRClient:
             if nicolive_program_info.status == 'ENDED':
                 # すでに放送を終了した番組はストリーミングを開始できない
                 ## 厳密には NDGR の各 API に接続することはできるが、当然新規にコメントが降ってくることはなく、過去ログ参照のみ
-                raise ValueError(f'Program {nicolive_program_info.nicoliveProgramId} has already ended and cannot be streamed.')
-            self.print(f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})')
-            self.print(f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
-                       f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
-                       f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)')
+                raise ValueError(
+                    f'Program {nicolive_program_info.nicoliveProgramId} has already ended and cannot be streamed.'
+                )
+            self.print(
+                f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})'
+            )
+            self.print(
+                f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
+                f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
+                f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)'
+            )
             self.print(Rule(characters='-', style=Style(color='#E33157')))
             view_api_uri = await self.fetchNDGRViewURI(nicolive_program_info.webSocketUrl)
 
@@ -378,7 +397,6 @@ class NDGRClient:
 
                         # 受信中番組がニコニコ実況番組のときのみ
                         elif self.jikkyo_channel_id is not None:
-
                             # 同一ニコニコチャンネルで連続して配信されているものの、前回の番組情報取得時から
                             # ニコニコ生放送番組 ID が変更されているときは、後続のニコニコ実況番組に切り替えてコメント受信処理を再開する
                             ## ニコニコ実況の毎日 04:00 での番組リセット向けの処理
@@ -403,7 +421,6 @@ class NDGRClient:
 
                 nonlocal ready_for_next, is_first_time
                 while True:
-
                     # 状態次第で NDGR View API の ?at= に渡すタイムスタンプを決定する
                     # 初回アクセス時は ?at=now を指定する
                     # 次回アクセス時は ?at= に ChunkedEntry.ReadyForNext.at に設定されている UNIX タイムスタンプを指定する
@@ -421,21 +438,22 @@ class NDGRClient:
                     while retry_count < 3:
                         try:
                             async for chunked_entry in self.fetchChunkedEntries(view_api_uri, at):
-
                                 # NDGR Segment API への接続情報を取得
                                 ## 現在、現在受信中のセグメントの配信終了時刻の 6 秒前に次のセグメントへの接続情報が配信される仕様になっている
                                 ## 次のセグメントへの接続情報を受信次第、即座にセグメント受信タスクを開始する
                                 ## こうすることで、前のセグメントの配信が終了してから次のセグメントの配信開始後に受信するまでの時間的ギャップを回避できる
                                 if chunked_entry.HasField('segment'):
-
                                     # セグメントの配信開始時刻と配信終了時刻の UNIX タイムスタンプを取得
                                     ## セグメントには配信開始時刻より前から接続できる
                                     segment = chunked_entry.segment
                                     segment_from = segment.from_.seconds + (segment.from_.nanos / 1e9)
                                     segment_until = segment.until.seconds + (segment.until.nanos / 1e9)
-                                    self.print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] '
-                                               f'Segment From: {datetime.fromtimestamp(segment_from).strftime("%H:%M:%S")} / '
-                                               f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}', verbose_log=True)
+                                    self.print(
+                                        f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] '
+                                        f'Segment From: {datetime.fromtimestamp(segment_from).strftime("%H:%M:%S")} / '
+                                        f'Segment Until: {datetime.fromtimestamp(segment_until).strftime("%H:%M:%S")}',
+                                        verbose_log=True,
+                                    )
                                     self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
 
                                     # すでに同一 URI の ChunkedMessage 受信タスクが存在する場合は、
@@ -445,7 +463,10 @@ class NDGRClient:
                                         task = asyncio.create_task(fetch_chunked_message(segment))
                                         active_segments[segment.uri] = task
                                     else:
-                                        self.print(f'Task for segment URI {segment.uri} is already running. Skipping creation of new task.', verbose_log=True)
+                                        self.print(
+                                            f'Task for segment URI {segment.uri} is already running. Skipping creation of new task.',
+                                            verbose_log=True,
+                                        )
 
                                 # 次回の NDGR View API アクセス用タイムスタンプを取得
                                 elif chunked_entry.HasField('next'):
@@ -499,12 +520,11 @@ class NDGRClient:
                     ## 大半のケースでコメントキューの方が早く完了する (コメントは多い時だと 0.01 秒間隔で降ってくるため)
                     done, _ = await asyncio.wait(
                         [asyncio.create_task(comment_queue.get()), program_info_task],
-                        return_when = asyncio.FIRST_COMPLETED,
+                        return_when=asyncio.FIRST_COMPLETED,
                     )
 
                     # 先に完了した方のタスクを処理
                     for task in done:
-
                         # 番組情報状態監視タスクが先に完了した: 現在コメント受信中の番組の放送が終了した
                         if task is program_info_task:
                             result = cast(Literal['ENDED', 'RESTART'], task.result())
@@ -523,7 +543,6 @@ class NDGRClient:
                             yield comment
                             comment_queue.task_done()
             finally:
-
                 # すべてのアクティブな ChunkedMessage 受信タスクをキャンセル
                 for task in active_segments.values():
                     task.cancel()
@@ -531,7 +550,9 @@ class NDGRClient:
                 program_info_task.cancel()
 
                 # タスクが完全に終了するのを待つ
-                await asyncio.gather(chunked_entries_task, program_info_task, *active_segments.values(), return_exceptions=True)
+                await asyncio.gather(
+                    chunked_entries_task, program_info_task, *active_segments.values(), return_exceptions=True
+                )
 
         # コメント受信処理を開始
         while True:
@@ -545,7 +566,6 @@ class NDGRClient:
                 # comment が NDGRComment のときは yield する
                 else:
                     yield comment
-
 
     async def downloadBackwardComments(self) -> list[NDGRComment]:
         """
@@ -561,10 +581,14 @@ class NDGRClient:
 
         # 視聴ページから NDGR View API の URI を取得する
         nicolive_program_info = await self.fetchNicoLiveProgramInfo()
-        self.print(f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})')
-        self.print(f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
-                   f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
-                   f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)')
+        self.print(
+            f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})'
+        )
+        self.print(
+            f'Period: {datetime.fromtimestamp(nicolive_program_info.openTime).strftime("%Y-%m-%d %H:%M:%S")} ~ '
+            f'{datetime.fromtimestamp(nicolive_program_info.endTime).strftime("%Y-%m-%d %H:%M:%S")} '
+            f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)'
+        )
         self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
         view_api_uri = await self.fetchNDGRViewURI(nicolive_program_info.webSocketUrl)
 
@@ -580,7 +604,6 @@ class NDGRClient:
         # NDGR View API の持続期間は一定期間ごとに区切られているらしく、
         # 一定期間が経過すると next フィールドに設定されている次の NDGR View API への再接続を求められる
         while True:
-
             # 状態次第で NDGR View API の ?at= に渡すタイムスタンプを決定する
             # 初回アクセス時は ?at=now を指定する
             # 次回アクセス時は ?at= に ChunkedEntry.ReadyForNext.at に設定されている UNIX タイムスタンプを指定する
@@ -602,7 +625,6 @@ class NDGRClient:
 
                 nonlocal ready_for_next, backward_api_uri, backward_api_uri_found
                 async for chunked_entry in self.fetchChunkedEntries(view_api_uri, at):
-
                     # next フィールドがが設定されているとき、NDGR View API への次回アクセス時に ?at= に指定するタイムスタンプ
                     # (が格納された ChunkedEntry.ReadyForNext) を更新する
                     if chunked_entry.HasField('next'):
@@ -623,7 +645,7 @@ class NDGRClient:
             # backward_api_uri が見つかるか、self.readProtobufStream() が完了するまで待機
             done, pending = await asyncio.wait(
                 [read_task, asyncio.create_task(backward_api_uri_found.wait())],
-                return_when = asyncio.FIRST_COMPLETED,
+                return_when=asyncio.FIRST_COMPLETED,
             )
 
             # 完了していないタスクをキャンセル
@@ -662,13 +684,14 @@ class NDGRClient:
             ## このメソッドでもレスポンスはコメント投稿時刻昇順で返したいので、comments への追加方法を工夫している
             temp_comments: list[NDGRComment] = []
             for chunked_message in packed_segment.messages:
-
                 # meta または message が存在しない場合は空の ChunkedMessage なので無視する
                 if not chunked_message.HasField('meta') or not chunked_message.HasField('message'):
                     continue
                 # NicoLiveMessage の中に chat or overflowed_chat がない場合は運営コメントや市場などコメント以外のメッセージなので無視する
                 # 通常のコメントであればどちらかは必ず存在するはず
-                if not chunked_message.message.HasField('chat') and not chunked_message.message.HasField('overflowed_chat'):
+                if not chunked_message.message.HasField('chat') and not chunked_message.message.HasField(
+                    'overflowed_chat'
+                ):
                     continue
                 # Chat の中に Modifier がない場合 (存在するのか？) はコメントの位置や色などの情報が取れないのでとりあえず無視する
                 if chunked_message.message.HasField('chat'):
@@ -703,7 +726,6 @@ class NDGRClient:
         self.print(Rule(characters='-', style=Style(color='#E33157')))
         return comments
 
-
     async def fetchNicoLiveProgramInfo(self) -> NicoLiveProgramInfo:
         """
         ニコニコ生放送の視聴ページを解析し、ニコニコ生放送の番組情報を取得する
@@ -737,16 +759,16 @@ class NDGRClient:
             assert 'relive' in embedded_data['site']
 
             return NicoLiveProgramInfo(
-                nicoliveProgramId = embedded_data['program']['nicoliveProgramId'],
-                title = embedded_data['program']['title'],
-                description = embedded_data['program']['description'],
-                status = embedded_data['program']['status'],
-                openTime = embedded_data['program']['openTime'],
-                beginTime = embedded_data['program']['beginTime'],
-                vposBaseTime = embedded_data['program']['vposBaseTime'],
-                endTime = embedded_data['program']['endTime'],
-                scheduledEndTime = embedded_data['program']['scheduledEndTime'],
-                webSocketUrl = embedded_data['site']['relive']['webSocketUrl'],
+                nicoliveProgramId=embedded_data['program']['nicoliveProgramId'],
+                title=embedded_data['program']['title'],
+                description=embedded_data['program']['description'],
+                status=embedded_data['program']['status'],
+                openTime=embedded_data['program']['openTime'],
+                beginTime=embedded_data['program']['beginTime'],
+                vposBaseTime=embedded_data['program']['vposBaseTime'],
+                endTime=embedded_data['program']['endTime'],
+                scheduledEndTime=embedded_data['program']['scheduledEndTime'],
+                webSocketUrl=embedded_data['site']['relive']['webSocketUrl'],
             )
 
         # ニコニコ生放送の視聴ページから番組情報を取得
@@ -759,12 +781,15 @@ class NDGRClient:
         # - self.nicolive_id がニコニコチャンネル ID (chXXXXX) である
         # これらの条件をすべて満たす場合、ニコニコチャンネルのトップページから現在放送中の lvID を取得し直すことを試みる
         # ニコ生側のバグで /watch/chXXXXX へのアクセスが古い (終了済み番組の) lvID にリダイレクトされる場合があることへの対処
-        if ((program_info.status == 'ENDED') and
-            (datetime.now().timestamp() > program_info.endTime + (5 * 60)) and
-            (self.nicolive_id.startswith('ch'))):  # コンストラクタで jikkyo_channel_id が指定された場合も self.nicolive_id にはニコニコチャンネル ID が入っている
-
+        if (
+            (program_info.status == 'ENDED')
+            and (datetime.now().timestamp() > program_info.endTime + (5 * 60))
+            and (self.nicolive_id.startswith('ch'))
+        ):  # コンストラクタで jikkyo_channel_id が指定された場合も self.nicolive_id にはニコニコチャンネル ID が入っている
             channel_id_for_fallback = self.nicolive_id
-            self.print(f'[Fallback] Program {program_info.nicoliveProgramId} has ended. Attempting to fetch current live ID for channel {channel_id_for_fallback}.')
+            self.print(
+                f'[Fallback] Program {program_info.nicoliveProgramId} has ended. Attempting to fetch current live ID for channel {channel_id_for_fallback}.'
+            )
             try:
                 # ニコニコチャンネルのトップページの #live_now セクションから現在放送中の lvID を取得
                 ch_live_page_url = f'https://ch.nicovideo.jp/{channel_id_for_fallback}/live'
@@ -774,23 +799,33 @@ class NDGRClient:
                 ch_soup = BeautifulSoup(ch_response_content, 'html.parser')
                 live_now_div = ch_soup.find('div', id='live_now')
                 if live_now_div:
-                    live_link_tag = live_now_div.find('a', href=lambda href: bool(href and href.startswith('https://live.nicovideo.jp/watch/lv')))  # type: ignore
-                    if live_link_tag and isinstance(live_link_tag, Tag):
+                    live_link_tag = live_now_div.find(
+                        'a', href=lambda href: bool(href and href.startswith('https://live.nicovideo.jp/watch/lv'))
+                    )
+                    if live_link_tag:
                         current_lv_id = cast(str, live_link_tag.get('href')).split('/')[-1]
                         if current_lv_id and current_lv_id != program_info.nicoliveProgramId:
                             # 新しい lvID で再度視聴ページ情報を取得
                             fallback_watch_page_url = f'https://live.nicovideo.jp/watch/{current_lv_id}'
                             program_info = await fetch_program_info_from_watch_page(fallback_watch_page_url)
-                            self.print(f'[Fallback] Found current live ID ({current_lv_id} / Title: {program_info.title}).')
+                            self.print(
+                                f'[Fallback] Found current live ID ({current_lv_id} / Title: {program_info.title}).'
+                            )
                         elif current_lv_id == program_info.nicoliveProgramId:
                             # 新しい lvID で視聴ページ情報を取得したところ、元の lvID と同じであった場合、以前取得した番組情報をそのまま使用する
-                            self.print(f'[Fallback] Current live ID ({current_lv_id}) is the same as the one already fetched. No update needed.')
+                            self.print(
+                                f'[Fallback] Current live ID ({current_lv_id}) is the same as the one already fetched. No update needed.'
+                            )
                         else:
                             # ニコニコチャンネルのトップページの #live_now セクションから現在放送中の lvID を取得できなかった場合
-                            self.print(f'[Fallback] Could not extract current live ID from channel page for {channel_id_for_fallback}.')
+                            self.print(
+                                f'[Fallback] Could not extract current live ID from channel page for {channel_id_for_fallback}.'
+                            )
                     else:
                         # ニコニコチャンネルのトップページの #live_now セクションから現在放送中の lvID を取得できなかった場合
-                        self.print(f'[Fallback] No live link found on channel page in #live_now for {channel_id_for_fallback}.')
+                        self.print(
+                            f'[Fallback] No live link found on channel page in #live_now for {channel_id_for_fallback}.'
+                        )
                 else:
                     # ニコニコチャンネルのトップページの #live_now セクションから現在放送中の lvID を取得できなかった場合
                     self.print(f'[Fallback] No #live_now div found on channel page for {channel_id_for_fallback}.')
@@ -807,34 +842,51 @@ class NDGRClient:
         ## なお、放送終了済みの段階でタイムシフト視聴を開始するにはプレミアム会員である必要がある
         ## タイムシフト視聴の開始はログイン中でないとできないため、ログイン中のみ実行する
         if program_info.status == 'ENDED' and program_info.webSocketUrl == '' and self.is_logged_in:
-
             # タイムシフト予約を実行
-            api_url = f'https://live2.nicovideo.jp/api/v2/programs/{program_info.nicoliveProgramId}/timeshift/reservation'
+            api_url = (
+                f'https://live2.nicovideo.jp/api/v2/programs/{program_info.nicoliveProgramId}/timeshift/reservation'
+            )
             ## X-Frontend-ID ヘッダーを設定しないとアクセスできない
-            reserve_response = await self.http_client.post(api_url, headers={'x-frontend-id': '9'}, timeout=15.0)
+            reserve_response = await self.http_client.post(
+                api_url,
+                headers={'x-frontend-id': '9'},
+                timeout=15.0,
+            )
             ## meta.errorCode が "DUPLICATED" の場合は既にタイムシフト予約済みなので無視する
-            if reserve_response.status_code != 200 and reserve_response.json().get('meta', {}).get('errorCode') != 'DUPLICATED':
-                raise ValueError(f'Failed to reserve timeshift. (HTTP Error {reserve_response.status_code}) Are you premium member?')
+            if (
+                reserve_response.status_code != 200
+                and reserve_response.json().get('meta', {}).get('errorCode') != 'DUPLICATED'
+            ):
+                raise ValueError(
+                    f'Failed to reserve timeshift. (HTTP Error {reserve_response.status_code}) Are you premium member?'
+                )
 
             # タイムシフト視聴を開始
             ## この API の実行後、ニコニコ生放送の視聴ページから webSocketUrl が取得できるようになる
-            start_watching_response = await self.http_client.patch(api_url, headers={'x-frontend-id': '9'}, timeout=15.0)
+            start_watching_response = await self.http_client.patch(
+                api_url,
+                headers={'x-frontend-id': '9'},
+                timeout=15.0,
+            )
             if start_watching_response.status_code != 200:
-                raise ValueError(f'Failed to start timeshift watching. (HTTP Error {start_watching_response.status_code}) Are you premium member?')
+                raise ValueError(
+                    f'Failed to start timeshift watching. (HTTP Error {start_watching_response.status_code}) Are you premium member?'
+                )
 
             # 再度ニコニコ生放送の視聴ページから webSocketUrl を取得
             # ここでは元の self.nicolive_id (chXXXXX の可能性あり) ではなく、確定した program_info.nicoliveProgramId (lvXXXXX) を使う
             refetched_program_info_url = f'https://live.nicovideo.jp/watch/{program_info.nicoliveProgramId}'
             program_info = await fetch_program_info_from_watch_page(refetched_program_info_url)
             if program_info.webSocketUrl == '':
-                raise ValueError(f'Failed to get webSocketUrl for {program_info.nicoliveProgramId} after timeshift reservation and start watching.')
+                raise ValueError(
+                    f'Failed to get webSocketUrl for {program_info.nicoliveProgramId} after timeshift reservation and start watching.'
+                )
             self.print(f'Timeshift watching has started for {program_info.nicoliveProgramId}.', verbose_log=True)
 
         # 上記条件以外で webSocketUrl が空文字列の場合は例外を送出…すると streamComments() での再接続処理に問題が出るため、行わない
         # エラー処理は各自で行う必要がある
 
         return program_info
-
 
     async def fetchNDGRViewURI(self, webSocketUrl: str) -> str:
         """
@@ -860,14 +912,17 @@ class NDGRClient:
 
         # ニコニコ生放送の視聴ページから取得した webSocketUrl に接続
         async with websockets.connect(webSocketUrl, user_agent_header=self.HTTP_HEADERS['user-agent']) as websocket:
-
             # 接続が確立したら、視聴開始リクエストを送る
-            await websocket.send(json.dumps({
-                'type': 'startWatching',
-                'data': {
-                    'reconnect': False,
-                },
-            }))
+            await websocket.send(
+                json.dumps(
+                    {
+                        'type': 'startWatching',
+                        'data': {
+                            'reconnect': False,
+                        },
+                    }
+                )
+            )
 
             # メッセージを受信し、NDGR View API の URI を取得する
             while True:
@@ -895,7 +950,6 @@ class NDGRClient:
                     await websocket.close()
                     return view_uri
 
-
     async def fetchChunkedEntries(self, view_api_uri: str, at: str | None) -> AsyncGenerator[chat.ChunkedEntry, None]:
         """
         NDGR View API から ChunkedEntry を受信する
@@ -911,7 +965,6 @@ class NDGRClient:
         url = f'{view_api_uri}?at={at}' if at else view_api_uri
         async for chunked_entry in self.fetchProtobufStream(url, chat.ChunkedEntry):
             yield chunked_entry
-
 
     async def fetchChunkedMessages(self, segment_uri: str) -> AsyncGenerator[NDGRComment, None]:
         """
@@ -942,9 +995,11 @@ class NDGRClient:
                 continue
             yield self.convertToNDGRComment(chunked_message)
 
-
     ProtobufType = TypeVar('ProtobufType', chat.ChunkedEntry, chat.ChunkedMessage, chat.PackedSegment)
-    async def fetchProtobufStream(self, uri: str, protobuf_class: Type[ProtobufType]) -> AsyncGenerator[ProtobufType, None]:
+
+    async def fetchProtobufStream(
+        self, uri: str, protobuf_class: type[ProtobufType]
+    ) -> AsyncGenerator[ProtobufType, None]:
         """
         Protobuf ストリームを読み込み、読み取った Protobuf チャンクをジェネレータで返す
         Protobuf ストリームを最後まで読み切ったら None を返す
@@ -1024,7 +1079,6 @@ class NDGRClient:
                     self.print(Rule(characters='-', style=Style(color='#E33157')))
                     raise
 
-
     def print(self, *args: Any, verbose_log: bool = False, **kwargs: Any) -> None:
         """
         NDGRClient の動作ログをコンソールやファイルに出力する
@@ -1045,7 +1099,6 @@ class NDGRClient:
         if self.log_path is not None:
             with self.log_path.open('a') as f:
                 print(*args, **kwargs, file=f)
-
 
     @staticmethod
     def convertToNDGRComment(chunked_message: chat.ChunkedMessage) -> NDGRComment:
@@ -1075,32 +1128,31 @@ class NDGRClient:
         color = 'white'
         if message_chat.modifier.HasField('full_color'):
             color = NDGRCommentFullColor(
-                r = message_chat.modifier.full_color.r,
-                g = message_chat.modifier.full_color.g,
-                b = message_chat.modifier.full_color.b,
+                r=message_chat.modifier.full_color.r,
+                g=message_chat.modifier.full_color.g,
+                b=message_chat.modifier.full_color.b,
             )
         elif message_chat.modifier.HasField('named_color'):
             color = cast(Any, atoms.Chat.Modifier.ColorName.Name(message_chat.modifier.named_color).lower())
 
         comment = NDGRComment(
-            id = chunked_message.meta.id,
-            at = datetime.fromtimestamp(chunked_message.meta.at.seconds + (chunked_message.meta.at.nanos / 1e9)),
-            live_id = chunked_message.meta.origin.chat.live_id,
-            raw_user_id = message_chat.raw_user_id,
-            hashed_user_id = message_chat.hashed_user_id,
-            account_status = cast(Any, atoms.Chat.AccountStatus.Name(message_chat.account_status)),
-            no = message_chat.no,
-            vpos = message_chat.vpos,
-            position = cast(Any, atoms.Chat.Modifier.Pos.Name(message_chat.modifier.position).lower()),
-            size = cast(Any, atoms.Chat.Modifier.Size.Name(message_chat.modifier.size).lower()),
-            color = color,
-            font = cast(Any, atoms.Chat.Modifier.Font.Name(message_chat.modifier.font).lower()),
-            opacity = cast(Any, atoms.Chat.Modifier.Opacity.Name(message_chat.modifier.opacity)),
-            content = message_chat.content,
+            id=chunked_message.meta.id,
+            at=datetime.fromtimestamp(chunked_message.meta.at.seconds + (chunked_message.meta.at.nanos / 1e9)),
+            live_id=chunked_message.meta.origin.chat.live_id,
+            raw_user_id=message_chat.raw_user_id,
+            hashed_user_id=message_chat.hashed_user_id,
+            account_status=cast(Any, atoms.Chat.AccountStatus.Name(message_chat.account_status)),
+            no=message_chat.no,
+            vpos=message_chat.vpos,
+            position=cast(Any, atoms.Chat.Modifier.Pos.Name(message_chat.modifier.position).lower()),
+            size=cast(Any, atoms.Chat.Modifier.Size.Name(message_chat.modifier.size).lower()),
+            color=color,
+            font=cast(Any, atoms.Chat.Modifier.Font.Name(message_chat.modifier.font).lower()),
+            opacity=cast(Any, atoms.Chat.Modifier.Opacity.Name(message_chat.modifier.opacity)),
+            content=message_chat.content,
         )
 
         return comment
-
 
     @staticmethod
     def convertToXMLCompatibleComment(comment: NDGRComment) -> XMLCompatibleComment:
@@ -1144,21 +1196,20 @@ class NDGRClient:
         xml_compatible_comment = XMLCompatibleComment(
             # lv 付きの生放送番組 ID をスレッド ID として設定
             ## NDGR メッセージサーバーには「スレッド」と一対一で対応する概念は存在しない
-            thread = f'lv{comment.live_id}',
-            no = comment.no,
-            vpos = comment.vpos,
-            date = int(comment.at.timestamp()),
-            date_usec = int((comment.at.timestamp() % 1) * 1000000),
-            user_id = user_id,
-            mail = ' '.join(command),
-            premium = 1 if comment.account_status == 'Premium' else None,
+            thread=f'lv{comment.live_id}',
+            no=comment.no,
+            vpos=comment.vpos,
+            date=int(comment.at.timestamp()),
+            date_usec=int((comment.at.timestamp() % 1) * 1000000),
+            user_id=user_id,
+            mail=' '.join(command),
+            premium=1 if comment.account_status == 'Premium' else None,
             # raw_user_id が 0 の場合は anonymity フィールドに 1 を設定している
-            anonymity = 1 if comment.raw_user_id == 0 else None,
-            content = comment.content,
+            anonymity=1 if comment.raw_user_id == 0 else None,
+            content=comment.content,
         )
 
         return xml_compatible_comment
-
 
     @staticmethod
     def convertToXMLString(comments: Sequence[NDGRComment | XMLCompatibleComment]) -> str:
@@ -1189,7 +1240,6 @@ class NDGRClient:
 
         # コメントごとに
         for xml_compatible_comment in xml_compatible_comments:
-
             # コメントをさらに辞書に変換
             comment_dict = xml_compatible_comment.model_dump()
 
@@ -1205,7 +1255,9 @@ class NDGRClient:
                 comment_dict['nx_jikkyo'] = '1'
 
             # 属性を XML エレメントに追加
-            sanitized_attrs = {key: sanitize_for_xml(str(value)) for key, value in comment_dict.items() if value is not None}
+            sanitized_attrs = {
+                key: sanitize_for_xml(str(value)) for key, value in comment_dict.items() if value is not None
+            }
             chat_elem_tree = ET.SubElement(elem_tree, 'chat', sanitized_attrs)
 
             # XML エレメント内の値に以前取得した本文を指定
@@ -1216,6 +1268,10 @@ class NDGRClient:
         # 素の XML を .nicojk 形式向けにフォーマットする
         # lxml.etree を使うことで属性の順序を保持できる
         # ref: https://banatech.net/blog/view/19
-        xml_string = ET.tostring(elem_tree, encoding='utf-8', pretty_print=True).decode('utf-8').replace('>\n  ', '>\n')  # インデントを除去
-        xml_string = xml_string.replace('<packet>\n', '').replace('</packet>', '').replace('<packet/>', '')  # <packet> タグを除去
+        xml_string = (
+            ET.tostring(elem_tree, encoding='utf-8', pretty_print=True).decode('utf-8').replace('>\n  ', '>\n')
+        )  # インデントを除去
+        xml_string = (
+            xml_string.replace('<packet>\n', '').replace('</packet>', '').replace('<packet/>', '')
+        )  # <packet> タグを除去
         return xml_string.rstrip()

@@ -1,0 +1,31 @@
+
+syntax = "proto3";
+
+package dwango.nicolive.chat.data.atoms;
+import "dwango/nicolive/chat/data/atoms.proto";
+
+
+message ForwardedChat {
+
+    Chat chat = 1;
+
+
+    string message_id = 2;
+
+
+    int64 source_live_id = 3;
+
+
+    enum ForwardingMode {
+
+        UNKNOWN = 0;
+
+
+        FROM_CRUISE = 1;
+
+
+        COLLAB_SHARING = 2;
+    }
+
+    ForwardingMode mode = 4;
+}

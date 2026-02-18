@@ -3,40 +3,51 @@
 isort:skip_file
 """
 
-import builtins
-import google.protobuf.descriptor
-import google.protobuf.message
-import typing
+from google.protobuf import descriptor as _descriptor
+from google.protobuf import message as _message
+import builtins as _builtins
+import sys
+import typing as _typing
 
-DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias as _TypeAlias
+else:
+    from typing_extensions import TypeAlias as _TypeAlias
 
-@typing.final
-class NicoliveOrigin(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+DESCRIPTOR: _descriptor.FileDescriptor
 
-    @typing.final
-    class Chat(google.protobuf.message.Message):
-        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class NicoliveOrigin(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-        LIVE_ID_FIELD_NUMBER: builtins.int
-        live_id: builtins.int
+    @_typing.final
+    class Chat(_message.Message):
+        DESCRIPTOR: _descriptor.Descriptor
+
+        LIVE_ID_FIELD_NUMBER: _builtins.int
+        live_id: _builtins.int
         def __init__(
             self,
             *,
-            live_id: builtins.int = ...,
+            live_id: _builtins.int = ...,
         ) -> None: ...
-        def ClearField(self, field_name: typing.Literal["live_id", b"live_id"]) -> None: ...
+        _ClearFieldArgType: _TypeAlias = _typing.Literal["live_id", b"live_id"]  # noqa: Y015
+        def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-    CHAT_FIELD_NUMBER: builtins.int
-    @property
-    def chat(self) -> global___NicoliveOrigin.Chat: ...
+    CHAT_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def chat(self) -> Global___NicoliveOrigin.Chat: ...
     def __init__(
         self,
         *,
-        chat: global___NicoliveOrigin.Chat | None = ...,
+        chat: Global___NicoliveOrigin.Chat | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["chat", b"chat", "origin", b"origin"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["chat", b"chat", "origin", b"origin"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["origin", b"origin"]) -> typing.Literal["chat"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["chat", b"chat", "origin", b"origin"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["chat", b"chat", "origin", b"origin"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType_origin: _TypeAlias = _typing.Literal["chat"]  # noqa: Y015
+    _WhichOneofArgType_origin: _TypeAlias = _typing.Literal["origin", b"origin"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType_origin) -> _WhichOneofReturnType_origin | None: ...
 
-global___NicoliveOrigin = NicoliveOrigin
+Global___NicoliveOrigin: _TypeAlias = NicoliveOrigin  # noqa: Y015

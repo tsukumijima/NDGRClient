@@ -3,61 +3,86 @@
 isort:skip_file
 """
 
-import builtins
-import ndgr_client.proto.dwango.nicolive.chat.data.atoms.moderator_pb2
-import ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2
-import google.protobuf.descriptor
-import google.protobuf.message
-import typing
+from ndgr_client.proto.dwango.nicolive.chat.data import atoms_pb2 as _atoms_pb2
+from ndgr_client.proto.dwango.nicolive.chat.data.atoms import akashic_pb2 as _akashic_pb2
+from ndgr_client.proto.dwango.nicolive.chat.data.atoms import forwarded_pb2 as _forwarded_pb2
+from ndgr_client.proto.dwango.nicolive.chat.data.atoms import moderator_pb2 as _moderator_pb2
+from ndgr_client.proto.dwango.nicolive.chat.data.atoms import notifications_pb2 as _notifications_pb2
+from google.protobuf import descriptor as _descriptor
+from google.protobuf import message as _message
+import builtins as _builtins
+import sys
+import typing as _typing
 
-DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias as _TypeAlias
+else:
+    from typing_extensions import TypeAlias as _TypeAlias
 
-@typing.final
-class NicoliveMessage(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+DESCRIPTOR: _descriptor.FileDescriptor
 
-    CHAT_FIELD_NUMBER: builtins.int
-    SIMPLE_NOTIFICATION_FIELD_NUMBER: builtins.int
-    GIFT_FIELD_NUMBER: builtins.int
-    NICOAD_FIELD_NUMBER: builtins.int
-    GAME_UPDATE_FIELD_NUMBER: builtins.int
-    TAG_UPDATED_FIELD_NUMBER: builtins.int
-    MODERATOR_UPDATED_FIELD_NUMBER: builtins.int
-    SSNG_UPDATED_FIELD_NUMBER: builtins.int
-    OVERFLOWED_CHAT_FIELD_NUMBER: builtins.int
-    @property
-    def chat(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Chat: ...
-    @property
-    def simple_notification(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.SimpleNotification: ...
-    @property
-    def gift(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Gift: ...
-    @property
-    def nicoad(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Nicoad: ...
-    @property
-    def game_update(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.GameUpdate: ...
-    @property
-    def tag_updated(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.TagUpdated: ...
-    @property
-    def moderator_updated(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms.moderator_pb2.ModeratorUpdated: ...
-    @property
-    def ssng_updated(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms.moderator_pb2.SSNGUpdated: ...
-    @property
-    def overflowed_chat(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Chat: ...
+@_typing.final
+class NicoliveMessage(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    CHAT_FIELD_NUMBER: _builtins.int
+    SIMPLE_NOTIFICATION_FIELD_NUMBER: _builtins.int
+    GIFT_FIELD_NUMBER: _builtins.int
+    NICOAD_FIELD_NUMBER: _builtins.int
+    GAME_UPDATE_FIELD_NUMBER: _builtins.int
+    TAG_UPDATED_FIELD_NUMBER: _builtins.int
+    MODERATOR_UPDATED_FIELD_NUMBER: _builtins.int
+    SSNG_UPDATED_FIELD_NUMBER: _builtins.int
+    OVERFLOWED_CHAT_FIELD_NUMBER: _builtins.int
+    FORWARDED_CHAT_FIELD_NUMBER: _builtins.int
+    SIMPLE_NOTIFICATION_V2_FIELD_NUMBER: _builtins.int
+    AKASHIC_MESSAGE_EVENT_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def chat(self) -> _atoms_pb2.Chat: ...
+    @_builtins.property
+    def simple_notification(self) -> _atoms_pb2.SimpleNotification: ...
+    @_builtins.property
+    def gift(self) -> _atoms_pb2.Gift: ...
+    @_builtins.property
+    def nicoad(self) -> _atoms_pb2.Nicoad: ...
+    @_builtins.property
+    def game_update(self) -> _atoms_pb2.GameUpdate: ...
+    @_builtins.property
+    def tag_updated(self) -> _atoms_pb2.TagUpdated: ...
+    @_builtins.property
+    def moderator_updated(self) -> _moderator_pb2.ModeratorUpdated: ...
+    @_builtins.property
+    def ssng_updated(self) -> _moderator_pb2.SSNGUpdated: ...
+    @_builtins.property
+    def overflowed_chat(self) -> _atoms_pb2.Chat: ...
+    @_builtins.property
+    def forwarded_chat(self) -> _forwarded_pb2.ForwardedChat: ...
+    @_builtins.property
+    def simple_notification_v2(self) -> _notifications_pb2.SimpleNotificationV2: ...
+    @_builtins.property
+    def akashic_message_event(self) -> _akashic_pb2.AkashicMessageEvent: ...
     def __init__(
         self,
         *,
-        chat: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Chat | None = ...,
-        simple_notification: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.SimpleNotification | None = ...,
-        gift: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Gift | None = ...,
-        nicoad: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Nicoad | None = ...,
-        game_update: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.GameUpdate | None = ...,
-        tag_updated: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.TagUpdated | None = ...,
-        moderator_updated: ndgr_client.proto.dwango.nicolive.chat.data.atoms.moderator_pb2.ModeratorUpdated | None = ...,
-        ssng_updated: ndgr_client.proto.dwango.nicolive.chat.data.atoms.moderator_pb2.SSNGUpdated | None = ...,
-        overflowed_chat: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Chat | None = ...,
+        chat: _atoms_pb2.Chat | None = ...,
+        simple_notification: _atoms_pb2.SimpleNotification | None = ...,
+        gift: _atoms_pb2.Gift | None = ...,
+        nicoad: _atoms_pb2.Nicoad | None = ...,
+        game_update: _atoms_pb2.GameUpdate | None = ...,
+        tag_updated: _atoms_pb2.TagUpdated | None = ...,
+        moderator_updated: _moderator_pb2.ModeratorUpdated | None = ...,
+        ssng_updated: _moderator_pb2.SSNGUpdated | None = ...,
+        overflowed_chat: _atoms_pb2.Chat | None = ...,
+        forwarded_chat: _forwarded_pb2.ForwardedChat | None = ...,
+        simple_notification_v2: _notifications_pb2.SimpleNotificationV2 | None = ...,
+        akashic_message_event: _akashic_pb2.AkashicMessageEvent | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["chat", b"chat", "data", b"data", "game_update", b"game_update", "gift", b"gift", "moderator_updated", b"moderator_updated", "nicoad", b"nicoad", "overflowed_chat", b"overflowed_chat", "simple_notification", b"simple_notification", "ssng_updated", b"ssng_updated", "tag_updated", b"tag_updated"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["chat", b"chat", "data", b"data", "game_update", b"game_update", "gift", b"gift", "moderator_updated", b"moderator_updated", "nicoad", b"nicoad", "overflowed_chat", b"overflowed_chat", "simple_notification", b"simple_notification", "ssng_updated", b"ssng_updated", "tag_updated", b"tag_updated"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["data", b"data"]) -> typing.Literal["chat", "simple_notification", "gift", "nicoad", "game_update", "tag_updated", "moderator_updated", "ssng_updated", "overflowed_chat"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["akashic_message_event", b"akashic_message_event", "chat", b"chat", "data", b"data", "forwarded_chat", b"forwarded_chat", "game_update", b"game_update", "gift", b"gift", "moderator_updated", b"moderator_updated", "nicoad", b"nicoad", "overflowed_chat", b"overflowed_chat", "simple_notification", b"simple_notification", "simple_notification_v2", b"simple_notification_v2", "ssng_updated", b"ssng_updated", "tag_updated", b"tag_updated"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["akashic_message_event", b"akashic_message_event", "chat", b"chat", "data", b"data", "forwarded_chat", b"forwarded_chat", "game_update", b"game_update", "gift", b"gift", "moderator_updated", b"moderator_updated", "nicoad", b"nicoad", "overflowed_chat", b"overflowed_chat", "simple_notification", b"simple_notification", "simple_notification_v2", b"simple_notification_v2", "ssng_updated", b"ssng_updated", "tag_updated", b"tag_updated"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType_data: _TypeAlias = _typing.Literal["chat", "simple_notification", "gift", "nicoad", "game_update", "tag_updated", "moderator_updated", "ssng_updated", "overflowed_chat", "forwarded_chat", "simple_notification_v2", "akashic_message_event"]  # noqa: Y015
+    _WhichOneofArgType_data: _TypeAlias = _typing.Literal["data", b"data"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType_data) -> _WhichOneofReturnType_data | None: ...
 
-global___NicoliveMessage = NicoliveMessage
+Global___NicoliveMessage: _TypeAlias = NicoliveMessage  # noqa: Y015

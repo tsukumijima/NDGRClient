@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package dwango.nicolive.chat.data.atoms;
+import "google/protobuf/struct.proto";
+
+message AkashicMessageEvent {
+
+  string type = 1;
+
+  string playId = 2;
+
+  bool ignorable = 3;
+
+  bool transient = 4;
+
+  google.protobuf.Struct parameters = 5;
+}
+
+message AkashicStateRouting {
+  int64 epoch = 1;
+
+
+  repeated AkashicMessageEvent join = 2;
+
+
+  repeated AkashicMessageEvent continuation = 3;
+
+
+  repeated AkashicMessageEvent shared = 4;
+}

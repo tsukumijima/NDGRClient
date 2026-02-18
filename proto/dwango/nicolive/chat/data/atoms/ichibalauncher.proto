@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package dwango.nicolive.chat.data.atoms;
+
+message IchibaLauncherItemSet {
+  message Item {
+
+    string id = 1;
+
+
+    string entityId = 2;
+
+
+    string serviceName = 3;
+
+
+    string title = 4;
+
+
+    enum LaunchDialogType {
+      SMALL = 0;
+      RICHIVIEW = 1;
+    }
+    LaunchDialogType launchDialogType = 5;
+
+
+    string thumbnailUrl = 6;
+
+
+    int32 thumbnailWidth = 7;
+
+
+    int32 thumbnailHeight = 8;
+
+
+    string launchUrl = 9;
+
+
+    optional string addedUserId = 10;
+
+
+    optional string reportUrl = 11;
+
+
+    bool running = 12;
+  }
+
+  int64 epoch = 1;
+
+  repeated Item items = 2;
+}

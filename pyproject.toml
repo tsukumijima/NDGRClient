@@ -9,8 +9,8 @@ readme = "Readme.md"
 [tool.taskipy.tasks]
 lint = "ruff check --fix ."
 format = "ruff format ."
-# 生成した後に from dwango.nicolive を from ndgr_client.proto.dwango.nicolive に一括置換する
-generate-proto = "find proto -name '*.proto' | xargs protoc --proto_path=proto --python_out=ndgr_client/proto --mypy_out=ndgr_client/proto && find ndgr_client/proto -name '*.py' -o -name '*.pyi' | xargs sed -i '' 's/ dwango\\.nicolive/ ndgr_client.proto.dwango.nicolive/g'"
+# リモートリポジトリから .proto ファイルを取得し、protoc で Python コード/mypy スタブを生成する
+update-proto = "python update_proto.py"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<4.0"
@@ -19,7 +19,7 @@ beautifulsoup4 = ">=4.12.3"
 lxml = ">=5.2.2"
 lxml-stubs = ">=0.5.1"
 niquests = ">=3.17.0"
-protobuf = "<5.28.0"  # protoc のバージョンに合わせないと警告が出る
+protobuf = ">=6.30.0"
 pydantic = ">=2.8.2"
 typer = {version = ">=0.12.3", extras = ["all"]}
 typing-extensions = ">=4.12.2"
@@ -27,7 +27,7 @@ websockets = ">=12.0"
 
 [tool.poetry.group.dev.dependencies]
 mypy-protobuf = ">=3.6.0"
-protoc-wheel-0 = ">=27.0"
+protoc-wheel-0 = ">=30.0"  # protobuf ライブラリの minor バージョンに合わせる必要がある
 ruff = ">=0.9.1"
 taskipy = ">=1.13.0"
 

@@ -3,78 +3,131 @@
 isort:skip_file
 """
 
-import builtins
-import ndgr_client.proto.dwango.nicolive.chat.data.atoms.moderator_pb2
-import ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2
-import google.protobuf.descriptor
-import google.protobuf.message
-import typing
+from ndgr_client.proto.dwango.nicolive.chat.data import atoms_pb2 as _atoms_pb2
+from ndgr_client.proto.dwango.nicolive.chat.data.atoms import akashic_pb2 as _akashic_pb2
+from ndgr_client.proto.dwango.nicolive.chat.data.atoms import ichibalauncher_pb2 as _ichibalauncher_pb2
+from ndgr_client.proto.dwango.nicolive.chat.data.atoms import moderator_pb2 as _moderator_pb2
+from ndgr_client.proto.dwango.nicolive.chat.data.atoms import streamstate_pb2 as _streamstate_pb2
+from google.protobuf import descriptor as _descriptor
+from google.protobuf import message as _message
+import builtins as _builtins
+import sys
+import typing as _typing
 
-DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias as _TypeAlias
+else:
+    from typing_extensions import TypeAlias as _TypeAlias
 
-@typing.final
-class NicoliveState(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+DESCRIPTOR: _descriptor.FileDescriptor
 
-    STATISTICS_FIELD_NUMBER: builtins.int
-    ENQUETE_FIELD_NUMBER: builtins.int
-    MOVE_ORDER_FIELD_NUMBER: builtins.int
-    MARQUEE_FIELD_NUMBER: builtins.int
-    COMMENT_LOCK_FIELD_NUMBER: builtins.int
-    COMMENT_MODE_FIELD_NUMBER: builtins.int
-    TRIAL_PANEL_FIELD_NUMBER: builtins.int
-    PROGRAM_STATUS_FIELD_NUMBER: builtins.int
-    MODERATION_ANNOUNCEMENT_FIELD_NUMBER: builtins.int
-    @property
-    def statistics(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Statistics: ...
-    @property
-    def enquete(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Enquete: ...
-    @property
-    def move_order(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.MoveOrder: ...
-    @property
-    def marquee(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Marquee: ...
-    @property
-    def comment_lock(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.CommentLock: ...
-    @property
-    def comment_mode(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.CommentMode: ...
-    @property
-    def trial_panel(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.TrialPanel: ...
-    @property
-    def program_status(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.ProgramStatus: ...
-    @property
-    def moderation_announcement(self) -> ndgr_client.proto.dwango.nicolive.chat.data.atoms.moderator_pb2.ModerationAnnouncement: ...
+@_typing.final
+class NicoliveState(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    STATISTICS_FIELD_NUMBER: _builtins.int
+    ENQUETE_FIELD_NUMBER: _builtins.int
+    MOVE_ORDER_FIELD_NUMBER: _builtins.int
+    MARQUEE_FIELD_NUMBER: _builtins.int
+    COMMENT_LOCK_FIELD_NUMBER: _builtins.int
+    COMMENT_MODE_FIELD_NUMBER: _builtins.int
+    TRIAL_PANEL_FIELD_NUMBER: _builtins.int
+    PROGRAM_STATUS_FIELD_NUMBER: _builtins.int
+    MODERATION_ANNOUNCEMENT_FIELD_NUMBER: _builtins.int
+    ICHIBA_LAUNCHER_FIELD_NUMBER: _builtins.int
+    STREAM_STATE_CHANGE_FIELD_NUMBER: _builtins.int
+    AKASHIC_STATE_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def statistics(self) -> _atoms_pb2.Statistics: ...
+    @_builtins.property
+    def enquete(self) -> _atoms_pb2.Enquete: ...
+    @_builtins.property
+    def move_order(self) -> _atoms_pb2.MoveOrder: ...
+    @_builtins.property
+    def marquee(self) -> _atoms_pb2.Marquee: ...
+    @_builtins.property
+    def comment_lock(self) -> _atoms_pb2.CommentLock: ...
+    @_builtins.property
+    def comment_mode(self) -> _atoms_pb2.CommentMode: ...
+    @_builtins.property
+    def trial_panel(self) -> _atoms_pb2.TrialPanel: ...
+    @_builtins.property
+    def program_status(self) -> _atoms_pb2.ProgramStatus: ...
+    @_builtins.property
+    def moderation_announcement(self) -> _moderator_pb2.ModerationAnnouncement: ...
+    @_builtins.property
+    def ichiba_launcher(self) -> _ichibalauncher_pb2.IchibaLauncherItemSet: ...
+    @_builtins.property
+    def stream_state_change(self) -> _streamstate_pb2.StreamStateChange: ...
+    @_builtins.property
+    def akashic_state(self) -> _akashic_pb2.AkashicStateRouting: ...
     def __init__(
         self,
         *,
-        statistics: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Statistics | None = ...,
-        enquete: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Enquete | None = ...,
-        move_order: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.MoveOrder | None = ...,
-        marquee: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.Marquee | None = ...,
-        comment_lock: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.CommentLock | None = ...,
-        comment_mode: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.CommentMode | None = ...,
-        trial_panel: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.TrialPanel | None = ...,
-        program_status: ndgr_client.proto.dwango.nicolive.chat.data.atoms_pb2.ProgramStatus | None = ...,
-        moderation_announcement: ndgr_client.proto.dwango.nicolive.chat.data.atoms.moderator_pb2.ModerationAnnouncement | None = ...,
+        statistics: _atoms_pb2.Statistics | None = ...,
+        enquete: _atoms_pb2.Enquete | None = ...,
+        move_order: _atoms_pb2.MoveOrder | None = ...,
+        marquee: _atoms_pb2.Marquee | None = ...,
+        comment_lock: _atoms_pb2.CommentLock | None = ...,
+        comment_mode: _atoms_pb2.CommentMode | None = ...,
+        trial_panel: _atoms_pb2.TrialPanel | None = ...,
+        program_status: _atoms_pb2.ProgramStatus | None = ...,
+        moderation_announcement: _moderator_pb2.ModerationAnnouncement | None = ...,
+        ichiba_launcher: _ichibalauncher_pb2.IchibaLauncherItemSet | None = ...,
+        stream_state_change: _streamstate_pb2.StreamStateChange | None = ...,
+        akashic_state: _akashic_pb2.AkashicStateRouting | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_comment_lock", b"_comment_lock", "_comment_mode", b"_comment_mode", "_enquete", b"_enquete", "_marquee", b"_marquee", "_moderation_announcement", b"_moderation_announcement", "_move_order", b"_move_order", "_program_status", b"_program_status", "_statistics", b"_statistics", "_trial_panel", b"_trial_panel", "comment_lock", b"comment_lock", "comment_mode", b"comment_mode", "enquete", b"enquete", "marquee", b"marquee", "moderation_announcement", b"moderation_announcement", "move_order", b"move_order", "program_status", b"program_status", "statistics", b"statistics", "trial_panel", b"trial_panel"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_comment_lock", b"_comment_lock", "_comment_mode", b"_comment_mode", "_enquete", b"_enquete", "_marquee", b"_marquee", "_moderation_announcement", b"_moderation_announcement", "_move_order", b"_move_order", "_program_status", b"_program_status", "_statistics", b"_statistics", "_trial_panel", b"_trial_panel", "comment_lock", b"comment_lock", "comment_mode", b"comment_mode", "enquete", b"enquete", "marquee", b"marquee", "moderation_announcement", b"moderation_announcement", "move_order", b"move_order", "program_status", b"program_status", "statistics", b"statistics", "trial_panel", b"trial_panel"]) -> None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_comment_lock", b"_comment_lock"]) -> typing.Literal["comment_lock"] | None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_comment_mode", b"_comment_mode"]) -> typing.Literal["comment_mode"] | None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_enquete", b"_enquete"]) -> typing.Literal["enquete"] | None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_marquee", b"_marquee"]) -> typing.Literal["marquee"] | None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_moderation_announcement", b"_moderation_announcement"]) -> typing.Literal["moderation_announcement"] | None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_move_order", b"_move_order"]) -> typing.Literal["move_order"] | None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_program_status", b"_program_status"]) -> typing.Literal["program_status"] | None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_statistics", b"_statistics"]) -> typing.Literal["statistics"] | None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_trial_panel", b"_trial_panel"]) -> typing.Literal["trial_panel"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_akashic_state", b"_akashic_state", "_comment_lock", b"_comment_lock", "_comment_mode", b"_comment_mode", "_enquete", b"_enquete", "_ichiba_launcher", b"_ichiba_launcher", "_marquee", b"_marquee", "_moderation_announcement", b"_moderation_announcement", "_move_order", b"_move_order", "_program_status", b"_program_status", "_statistics", b"_statistics", "_stream_state_change", b"_stream_state_change", "_trial_panel", b"_trial_panel", "akashic_state", b"akashic_state", "comment_lock", b"comment_lock", "comment_mode", b"comment_mode", "enquete", b"enquete", "ichiba_launcher", b"ichiba_launcher", "marquee", b"marquee", "moderation_announcement", b"moderation_announcement", "move_order", b"move_order", "program_status", b"program_status", "statistics", b"statistics", "stream_state_change", b"stream_state_change", "trial_panel", b"trial_panel"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_akashic_state", b"_akashic_state", "_comment_lock", b"_comment_lock", "_comment_mode", b"_comment_mode", "_enquete", b"_enquete", "_ichiba_launcher", b"_ichiba_launcher", "_marquee", b"_marquee", "_moderation_announcement", b"_moderation_announcement", "_move_order", b"_move_order", "_program_status", b"_program_status", "_statistics", b"_statistics", "_stream_state_change", b"_stream_state_change", "_trial_panel", b"_trial_panel", "akashic_state", b"akashic_state", "comment_lock", b"comment_lock", "comment_mode", b"comment_mode", "enquete", b"enquete", "ichiba_launcher", b"ichiba_launcher", "marquee", b"marquee", "moderation_announcement", b"moderation_announcement", "move_order", b"move_order", "program_status", b"program_status", "statistics", b"statistics", "stream_state_change", b"stream_state_change", "trial_panel", b"trial_panel"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType__akashic_state: _TypeAlias = _typing.Literal["akashic_state"]  # noqa: Y015
+    _WhichOneofArgType__akashic_state: _TypeAlias = _typing.Literal["_akashic_state", b"_akashic_state"]  # noqa: Y015
+    _WhichOneofReturnType__comment_lock: _TypeAlias = _typing.Literal["comment_lock"]  # noqa: Y015
+    _WhichOneofArgType__comment_lock: _TypeAlias = _typing.Literal["_comment_lock", b"_comment_lock"]  # noqa: Y015
+    _WhichOneofReturnType__comment_mode: _TypeAlias = _typing.Literal["comment_mode"]  # noqa: Y015
+    _WhichOneofArgType__comment_mode: _TypeAlias = _typing.Literal["_comment_mode", b"_comment_mode"]  # noqa: Y015
+    _WhichOneofReturnType__enquete: _TypeAlias = _typing.Literal["enquete"]  # noqa: Y015
+    _WhichOneofArgType__enquete: _TypeAlias = _typing.Literal["_enquete", b"_enquete"]  # noqa: Y015
+    _WhichOneofReturnType__ichiba_launcher: _TypeAlias = _typing.Literal["ichiba_launcher"]  # noqa: Y015
+    _WhichOneofArgType__ichiba_launcher: _TypeAlias = _typing.Literal["_ichiba_launcher", b"_ichiba_launcher"]  # noqa: Y015
+    _WhichOneofReturnType__marquee: _TypeAlias = _typing.Literal["marquee"]  # noqa: Y015
+    _WhichOneofArgType__marquee: _TypeAlias = _typing.Literal["_marquee", b"_marquee"]  # noqa: Y015
+    _WhichOneofReturnType__moderation_announcement: _TypeAlias = _typing.Literal["moderation_announcement"]  # noqa: Y015
+    _WhichOneofArgType__moderation_announcement: _TypeAlias = _typing.Literal["_moderation_announcement", b"_moderation_announcement"]  # noqa: Y015
+    _WhichOneofReturnType__move_order: _TypeAlias = _typing.Literal["move_order"]  # noqa: Y015
+    _WhichOneofArgType__move_order: _TypeAlias = _typing.Literal["_move_order", b"_move_order"]  # noqa: Y015
+    _WhichOneofReturnType__program_status: _TypeAlias = _typing.Literal["program_status"]  # noqa: Y015
+    _WhichOneofArgType__program_status: _TypeAlias = _typing.Literal["_program_status", b"_program_status"]  # noqa: Y015
+    _WhichOneofReturnType__statistics: _TypeAlias = _typing.Literal["statistics"]  # noqa: Y015
+    _WhichOneofArgType__statistics: _TypeAlias = _typing.Literal["_statistics", b"_statistics"]  # noqa: Y015
+    _WhichOneofReturnType__stream_state_change: _TypeAlias = _typing.Literal["stream_state_change"]  # noqa: Y015
+    _WhichOneofArgType__stream_state_change: _TypeAlias = _typing.Literal["_stream_state_change", b"_stream_state_change"]  # noqa: Y015
+    _WhichOneofReturnType__trial_panel: _TypeAlias = _typing.Literal["trial_panel"]  # noqa: Y015
+    _WhichOneofArgType__trial_panel: _TypeAlias = _typing.Literal["_trial_panel", b"_trial_panel"]  # noqa: Y015
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__akashic_state) -> _WhichOneofReturnType__akashic_state | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__comment_lock) -> _WhichOneofReturnType__comment_lock | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__comment_mode) -> _WhichOneofReturnType__comment_mode | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__enquete) -> _WhichOneofReturnType__enquete | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__ichiba_launcher) -> _WhichOneofReturnType__ichiba_launcher | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__marquee) -> _WhichOneofReturnType__marquee | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__moderation_announcement) -> _WhichOneofReturnType__moderation_announcement | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__move_order) -> _WhichOneofReturnType__move_order | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__program_status) -> _WhichOneofReturnType__program_status | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__statistics) -> _WhichOneofReturnType__statistics | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__stream_state_change) -> _WhichOneofReturnType__stream_state_change | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__trial_panel) -> _WhichOneofReturnType__trial_panel | None: ...
 
-global___NicoliveState = NicoliveState
+Global___NicoliveState: _TypeAlias = NicoliveState  # noqa: Y015

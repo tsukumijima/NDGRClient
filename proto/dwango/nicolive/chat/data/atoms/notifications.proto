@@ -1,0 +1,47 @@
+syntax = "proto3";
+package dwango.nicolive.chat.data.atoms;
+
+message SimpleNotificationV2 {
+  enum NotificationType {
+
+    UNKNOWN = 0;
+
+
+    ICHIBA = 1;
+
+
+    EMOTION = 2;
+
+
+    CRUISE = 3;
+
+
+    PROGRAM_EXTENDED = 4;
+
+
+    RANKING_IN = 5;
+
+
+    VISITED = 6;
+
+
+    SUPPORTER_REGISTERED = 7;
+
+
+    USER_LEVEL_UP = 8;
+
+
+    USER_FOLLOW = 9;
+  }
+
+  NotificationType type = 1;
+
+
+  string message = 2;
+
+
+  bool show_in_telop = 3;
+
+
+  bool show_in_list = 4;
+}

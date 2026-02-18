@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package dwango.nicolive.chat.data.atoms;
+
+message StreamStateChange {
+  int64 epoch = 1;
+
+  enum State {
+    PASSTHROUGH = 0;
+    PROCESSED = 1;
+  }
+
+
+  State state = 2;
+}

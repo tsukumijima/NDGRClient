@@ -3,59 +3,65 @@
 isort:skip_file
 """
 
-import builtins
-import collections.abc
-import google.protobuf.descriptor
-import google.protobuf.internal.containers
-import google.protobuf.internal.enum_type_wrapper
-import google.protobuf.message
-import google.protobuf.timestamp_pb2
+from collections import abc as _abc
+from google.protobuf import descriptor as _descriptor
+from google.protobuf import message as _message
+from google.protobuf import timestamp_pb2 as _timestamp_pb2
+from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+import builtins as _builtins
 import sys
-import typing
+import typing as _typing
 
 if sys.version_info >= (3, 10):
-    import typing as typing_extensions
+    from typing import TypeAlias as _TypeAlias
 else:
-    import typing_extensions
+    from typing_extensions import TypeAlias as _TypeAlias
 
-DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
+DESCRIPTOR: _descriptor.FileDescriptor
 
-@typing.final
-class ModeratorUserInfo(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ModeratorUserInfo(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    USER_ID_FIELD_NUMBER: builtins.int
-    NICKNAME_FIELD_NUMBER: builtins.int
-    ICONURL_FIELD_NUMBER: builtins.int
-    user_id: builtins.int
-    nickname: builtins.str
-    iconUrl: builtins.str
+    USER_ID_FIELD_NUMBER: _builtins.int
+    NICKNAME_FIELD_NUMBER: _builtins.int
+    ICONURL_FIELD_NUMBER: _builtins.int
+    user_id: _builtins.int
+    nickname: _builtins.str
+    iconUrl: _builtins.str
     def __init__(
         self,
         *,
-        user_id: builtins.int = ...,
-        nickname: builtins.str | None = ...,
-        iconUrl: builtins.str | None = ...,
+        user_id: _builtins.int = ...,
+        nickname: _builtins.str | None = ...,
+        iconUrl: _builtins.str | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_iconUrl", b"_iconUrl", "_nickname", b"_nickname", "iconUrl", b"iconUrl", "nickname", b"nickname"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_iconUrl", b"_iconUrl", "_nickname", b"_nickname", "iconUrl", b"iconUrl", "nickname", b"nickname", "user_id", b"user_id"]) -> None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_iconUrl", b"_iconUrl"]) -> typing.Literal["iconUrl"] | None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_nickname", b"_nickname"]) -> typing.Literal["nickname"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_iconUrl", b"_iconUrl", "_nickname", b"_nickname", "iconUrl", b"iconUrl", "nickname", b"nickname"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_iconUrl", b"_iconUrl", "_nickname", b"_nickname", "iconUrl", b"iconUrl", "nickname", b"nickname", "user_id", b"user_id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType__iconUrl: _TypeAlias = _typing.Literal["iconUrl"]  # noqa: Y015
+    _WhichOneofArgType__iconUrl: _TypeAlias = _typing.Literal["_iconUrl", b"_iconUrl"]  # noqa: Y015
+    _WhichOneofReturnType__nickname: _TypeAlias = _typing.Literal["nickname"]  # noqa: Y015
+    _WhichOneofArgType__nickname: _TypeAlias = _typing.Literal["_nickname", b"_nickname"]  # noqa: Y015
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__iconUrl) -> _WhichOneofReturnType__iconUrl | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__nickname) -> _WhichOneofReturnType__nickname | None: ...
 
-global___ModeratorUserInfo = ModeratorUserInfo
+Global___ModeratorUserInfo: _TypeAlias = ModeratorUserInfo  # noqa: Y015
 
-@typing.final
-class ModeratorUpdated(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ModeratorUpdated(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
     class _ModeratorOperation:
-        ValueType = typing.NewType("ValueType", builtins.int)
-        V: typing_extensions.TypeAlias = ValueType
+        ValueType = _typing.NewType("ValueType", _builtins.int)
+        V: _TypeAlias = ValueType  # noqa: Y015
 
-    class _ModeratorOperationEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ModeratorUpdated._ModeratorOperation.ValueType], builtins.type):
-        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+    class _ModeratorOperationEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[ModeratorUpdated._ModeratorOperation.ValueType], _builtins.type):
+        DESCRIPTOR: _descriptor.EnumDescriptor
         ADD: ModeratorUpdated._ModeratorOperation.ValueType  # 0
         DELETE: ModeratorUpdated._ModeratorOperation.ValueType  # 1
 
@@ -63,36 +69,38 @@ class ModeratorUpdated(google.protobuf.message.Message):
     ADD: ModeratorUpdated.ModeratorOperation.ValueType  # 0
     DELETE: ModeratorUpdated.ModeratorOperation.ValueType  # 1
 
-    OPERATION_FIELD_NUMBER: builtins.int
-    OPERATOR_FIELD_NUMBER: builtins.int
-    UPDATEDAT_FIELD_NUMBER: builtins.int
-    operation: global___ModeratorUpdated.ModeratorOperation.ValueType
-    @property
-    def operator(self) -> global___ModeratorUserInfo: ...
-    @property
-    def updatedAt(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    OPERATION_FIELD_NUMBER: _builtins.int
+    OPERATOR_FIELD_NUMBER: _builtins.int
+    UPDATEDAT_FIELD_NUMBER: _builtins.int
+    operation: Global___ModeratorUpdated.ModeratorOperation.ValueType
+    @_builtins.property
+    def operator(self) -> Global___ModeratorUserInfo: ...
+    @_builtins.property
+    def updatedAt(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
         self,
         *,
-        operation: global___ModeratorUpdated.ModeratorOperation.ValueType = ...,
-        operator: global___ModeratorUserInfo | None = ...,
-        updatedAt: google.protobuf.timestamp_pb2.Timestamp | None = ...,
+        operation: Global___ModeratorUpdated.ModeratorOperation.ValueType = ...,
+        operator: Global___ModeratorUserInfo | None = ...,
+        updatedAt: _timestamp_pb2.Timestamp | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["operator", b"operator", "updatedAt", b"updatedAt"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["operation", b"operation", "operator", b"operator", "updatedAt", b"updatedAt"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["operator", b"operator", "updatedAt", b"updatedAt"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["operation", b"operation", "operator", b"operator", "updatedAt", b"updatedAt"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___ModeratorUpdated = ModeratorUpdated
+Global___ModeratorUpdated: _TypeAlias = ModeratorUpdated  # noqa: Y015
 
-@typing.final
-class SSNGUpdated(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class SSNGUpdated(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
     class _SSNGOperation:
-        ValueType = typing.NewType("ValueType", builtins.int)
-        V: typing_extensions.TypeAlias = ValueType
+        ValueType = _typing.NewType("ValueType", _builtins.int)
+        V: _TypeAlias = ValueType  # noqa: Y015
 
-    class _SSNGOperationEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[SSNGUpdated._SSNGOperation.ValueType], builtins.type):
-        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+    class _SSNGOperationEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[SSNGUpdated._SSNGOperation.ValueType], _builtins.type):
+        DESCRIPTOR: _descriptor.EnumDescriptor
         ADD: SSNGUpdated._SSNGOperation.ValueType  # 0
         DELETE: SSNGUpdated._SSNGOperation.ValueType  # 1
 
@@ -101,11 +109,11 @@ class SSNGUpdated(google.protobuf.message.Message):
     DELETE: SSNGUpdated.SSNGOperation.ValueType  # 1
 
     class _SSNGType:
-        ValueType = typing.NewType("ValueType", builtins.int)
-        V: typing_extensions.TypeAlias = ValueType
+        ValueType = _typing.NewType("ValueType", _builtins.int)
+        V: _TypeAlias = ValueType  # noqa: Y015
 
-    class _SSNGTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[SSNGUpdated._SSNGType.ValueType], builtins.type):
-        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+    class _SSNGTypeEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[SSNGUpdated._SSNGType.ValueType], _builtins.type):
+        DESCRIPTOR: _descriptor.EnumDescriptor
         USER: SSNGUpdated._SSNGType.ValueType  # 0
         WORD: SSNGUpdated._SSNGType.ValueType  # 1
         COMMAND: SSNGUpdated._SSNGType.ValueType  # 2
@@ -115,51 +123,75 @@ class SSNGUpdated(google.protobuf.message.Message):
     WORD: SSNGUpdated.SSNGType.ValueType  # 1
     COMMAND: SSNGUpdated.SSNGType.ValueType  # 2
 
-    OPERATION_FIELD_NUMBER: builtins.int
-    SSNG_ID_FIELD_NUMBER: builtins.int
-    OPERATOR_FIELD_NUMBER: builtins.int
-    TYPE_FIELD_NUMBER: builtins.int
-    SOURCE_FIELD_NUMBER: builtins.int
-    UPDATEDAT_FIELD_NUMBER: builtins.int
-    operation: global___SSNGUpdated.SSNGOperation.ValueType
-    ssng_id: builtins.int
-    type: global___SSNGUpdated.SSNGType.ValueType
-    source: builtins.str
-    @property
-    def operator(self) -> global___ModeratorUserInfo: ...
-    @property
-    def updatedAt(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    class _SSNGOperatorType:
+        ValueType = _typing.NewType("ValueType", _builtins.int)
+        V: _TypeAlias = ValueType  # noqa: Y015
+
+    class _SSNGOperatorTypeEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[SSNGUpdated._SSNGOperatorType.ValueType], _builtins.type):
+        DESCRIPTOR: _descriptor.EnumDescriptor
+        MODERATOR: SSNGUpdated._SSNGOperatorType.ValueType  # 0
+        BROADCASTER: SSNGUpdated._SSNGOperatorType.ValueType  # 1
+
+    class SSNGOperatorType(_SSNGOperatorType, metaclass=_SSNGOperatorTypeEnumTypeWrapper): ...
+    MODERATOR: SSNGUpdated.SSNGOperatorType.ValueType  # 0
+    BROADCASTER: SSNGUpdated.SSNGOperatorType.ValueType  # 1
+
+    OPERATION_FIELD_NUMBER: _builtins.int
+    SSNG_ID_FIELD_NUMBER: _builtins.int
+    OPERATOR_FIELD_NUMBER: _builtins.int
+    TYPE_FIELD_NUMBER: _builtins.int
+    SOURCE_FIELD_NUMBER: _builtins.int
+    UPDATEDAT_FIELD_NUMBER: _builtins.int
+    OPERATOR_TYPE_FIELD_NUMBER: _builtins.int
+    operation: Global___SSNGUpdated.SSNGOperation.ValueType
+    ssng_id: _builtins.int
+    type: Global___SSNGUpdated.SSNGType.ValueType
+    source: _builtins.str
+    operator_type: Global___SSNGUpdated.SSNGOperatorType.ValueType
+    @_builtins.property
+    def operator(self) -> Global___ModeratorUserInfo: ...
+    @_builtins.property
+    def updatedAt(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
         self,
         *,
-        operation: global___SSNGUpdated.SSNGOperation.ValueType = ...,
-        ssng_id: builtins.int = ...,
-        operator: global___ModeratorUserInfo | None = ...,
-        type: global___SSNGUpdated.SSNGType.ValueType | None = ...,
-        source: builtins.str | None = ...,
-        updatedAt: google.protobuf.timestamp_pb2.Timestamp | None = ...,
+        operation: Global___SSNGUpdated.SSNGOperation.ValueType = ...,
+        ssng_id: _builtins.int = ...,
+        operator: Global___ModeratorUserInfo | None = ...,
+        type: Global___SSNGUpdated.SSNGType.ValueType | None = ...,
+        source: _builtins.str | None = ...,
+        updatedAt: _timestamp_pb2.Timestamp | None = ...,
+        operator_type: Global___SSNGUpdated.SSNGOperatorType.ValueType = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_source", b"_source", "_type", b"_type", "_updatedAt", b"_updatedAt", "operator", b"operator", "source", b"source", "type", b"type", "updatedAt", b"updatedAt"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_source", b"_source", "_type", b"_type", "_updatedAt", b"_updatedAt", "operation", b"operation", "operator", b"operator", "source", b"source", "ssng_id", b"ssng_id", "type", b"type", "updatedAt", b"updatedAt"]) -> None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_source", b"_source"]) -> typing.Literal["source"] | None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_type", b"_type"]) -> typing.Literal["type"] | None: ...
-    @typing.overload
-    def WhichOneof(self, oneof_group: typing.Literal["_updatedAt", b"_updatedAt"]) -> typing.Literal["updatedAt"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_source", b"_source", "_type", b"_type", "_updatedAt", b"_updatedAt", "operator", b"operator", "source", b"source", "type", b"type", "updatedAt", b"updatedAt"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_source", b"_source", "_type", b"_type", "_updatedAt", b"_updatedAt", "operation", b"operation", "operator", b"operator", "operator_type", b"operator_type", "source", b"source", "ssng_id", b"ssng_id", "type", b"type", "updatedAt", b"updatedAt"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType__source: _TypeAlias = _typing.Literal["source"]  # noqa: Y015
+    _WhichOneofArgType__source: _TypeAlias = _typing.Literal["_source", b"_source"]  # noqa: Y015
+    _WhichOneofReturnType__type: _TypeAlias = _typing.Literal["type"]  # noqa: Y015
+    _WhichOneofArgType__type: _TypeAlias = _typing.Literal["_type", b"_type"]  # noqa: Y015
+    _WhichOneofReturnType__updatedAt: _TypeAlias = _typing.Literal["updatedAt"]  # noqa: Y015
+    _WhichOneofArgType__updatedAt: _TypeAlias = _typing.Literal["_updatedAt", b"_updatedAt"]  # noqa: Y015
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__source) -> _WhichOneofReturnType__source | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__type) -> _WhichOneofReturnType__type | None: ...
+    @_typing.overload
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__updatedAt) -> _WhichOneofReturnType__updatedAt | None: ...
 
-global___SSNGUpdated = SSNGUpdated
+Global___SSNGUpdated: _TypeAlias = SSNGUpdated  # noqa: Y015
 
-@typing.final
-class ModerationAnnouncement(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ModerationAnnouncement(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
     class _GuidelineItem:
-        ValueType = typing.NewType("ValueType", builtins.int)
-        V: typing_extensions.TypeAlias = ValueType
+        ValueType = _typing.NewType("ValueType", _builtins.int)
+        V: _TypeAlias = ValueType  # noqa: Y015
 
-    class _GuidelineItemEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ModerationAnnouncement._GuidelineItem.ValueType], builtins.type):
-        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+    class _GuidelineItemEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[ModerationAnnouncement._GuidelineItem.ValueType], _builtins.type):
+        DESCRIPTOR: _descriptor.EnumDescriptor
         UNKNOWN: ModerationAnnouncement._GuidelineItem.ValueType  # 0
         SEXUAL: ModerationAnnouncement._GuidelineItem.ValueType  # 1
         SPAM: ModerationAnnouncement._GuidelineItem.ValueType  # 2
@@ -173,23 +205,27 @@ class ModerationAnnouncement(google.protobuf.message.Message):
     SLANDER: ModerationAnnouncement.GuidelineItem.ValueType  # 3
     PERSONAL_INFORMATION: ModerationAnnouncement.GuidelineItem.ValueType  # 4
 
-    MESSAGE_FIELD_NUMBER: builtins.int
-    GUIDELINEITEMS_FIELD_NUMBER: builtins.int
-    UPDATEDAT_FIELD_NUMBER: builtins.int
-    message: builtins.str
-    @property
-    def guidelineItems(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[global___ModerationAnnouncement.GuidelineItem.ValueType]: ...
-    @property
-    def updatedAt(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    MESSAGE_FIELD_NUMBER: _builtins.int
+    GUIDELINEITEMS_FIELD_NUMBER: _builtins.int
+    UPDATEDAT_FIELD_NUMBER: _builtins.int
+    message: _builtins.str
+    @_builtins.property
+    def guidelineItems(self) -> _containers.RepeatedScalarFieldContainer[Global___ModerationAnnouncement.GuidelineItem.ValueType]: ...
+    @_builtins.property
+    def updatedAt(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
         self,
         *,
-        message: builtins.str | None = ...,
-        guidelineItems: collections.abc.Iterable[global___ModerationAnnouncement.GuidelineItem.ValueType] | None = ...,
-        updatedAt: google.protobuf.timestamp_pb2.Timestamp | None = ...,
+        message: _builtins.str | None = ...,
+        guidelineItems: _abc.Iterable[Global___ModerationAnnouncement.GuidelineItem.ValueType] | None = ...,
+        updatedAt: _timestamp_pb2.Timestamp | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["_message", b"_message", "message", b"message", "updatedAt", b"updatedAt"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["_message", b"_message", "guidelineItems", b"guidelineItems", "message", b"message", "updatedAt", b"updatedAt"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["_message", b"_message"]) -> typing.Literal["message"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["_message", b"_message", "message", b"message", "updatedAt", b"updatedAt"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["_message", b"_message", "guidelineItems", b"guidelineItems", "message", b"message", "updatedAt", b"updatedAt"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType__message: _TypeAlias = _typing.Literal["message"]  # noqa: Y015
+    _WhichOneofArgType__message: _TypeAlias = _typing.Literal["_message", b"_message"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType__message) -> _WhichOneofReturnType__message | None: ...
 
-global___ModerationAnnouncement = ModerationAnnouncement
+Global___ModerationAnnouncement: _TypeAlias = ModerationAnnouncement  # noqa: Y015

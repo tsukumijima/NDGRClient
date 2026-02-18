@@ -5,7 +5,7 @@ import "google/protobuf/duration.proto";
 
 
 message Chat {
-  
+
   string content = 1;
 
   int32 vpos = 3;
@@ -14,22 +14,22 @@ message Chat {
     Standard = 0;
     Premium = 1;
   }
-  
+
   AccountStatus account_status = 4;
 
-  
+
   optional string name = 2;
 
-  
+
   optional int64 raw_user_id = 5;
 
-  
-  
+
+
   optional string hashed_user_id = 6;
 
-  
+
   message Modifier {
-    
+
     enum Pos {
       naka = 0;
       shita = 1;
@@ -37,7 +37,7 @@ message Chat {
     }
     Pos position = 1;
 
-    
+
     enum Size {
       medium = 0;
       small = 1;
@@ -45,7 +45,7 @@ message Chat {
     }
     Size size = 2;
 
-    
+
     enum ColorName {
       white = 0;
       red = 1;
@@ -69,7 +69,7 @@ message Chat {
       black2 = 19;
     }
 
-    
+
     message FullColor {
       int32 r = 1;
       int32 g = 2;
@@ -88,23 +88,23 @@ message Chat {
     Font font = 5;
 
     enum Opacity {
-      
+
       Normal = 0;
-      
+
       Translucent = 1;
     }
     Opacity opacity = 6;
   }
   Modifier modifier = 7;
 
-  
-  
-  
-  
-  
-  
-  
-  
+
+
+
+
+
+
+
+
   int32 no = 8;
 }
 
@@ -136,29 +136,35 @@ message Redirect {
 
 message SimpleNotification {
   oneof message {
-    
+
     string ichiba = 1;
 
-    
+
     string quote = 2;
 
-    
+
     string emotion = 3;
 
-    
+
     string cruise = 4;
 
-    
+
     string program_extended = 5;
 
-    
+
     string ranking_in = 6;
 
-    
+
     string ranking_updated = 8;
 
-    
+
     string visited = 7;
+
+
+    string supporter_registered = 9;
+
+
+    string user_level_up = 10;
   }
 }
 
@@ -210,8 +216,18 @@ message CommentLock {
   enum Status {
     Unrestricted = 0;
     Locked = 1;
+    Restricted = 2;
   }
   Status status = 1;
+
+  message FollowRestriction {
+
+
+    google.protobuf.Duration minimum_follow_duration = 1;
+  }
+
+
+  optional FollowRestriction follow_restriction = 2;
 }
 
 
@@ -235,25 +251,25 @@ message GameUpdate {
 
 message TrialPanel {
   enum Panel {
-    Hidden = 0;  
-    Display = 1; 
+    Hidden = 0;
+    Display = 1;
   }
-  
+
   Panel panel = 1;
 
   enum Mode {
-    Allowed = 0;   
+    Allowed = 0;
     Restricted = 1;
-    Forbidden = 2; 
+    Forbidden = 2;
   }
-  
+
   Mode unqualified_user = 2;
 }
 
 message ProgramStatus {
   enum State {
     Unknown = 0;
-    
+
     Ended = 1;
   }
   State state = 1;
@@ -266,7 +282,7 @@ message TagUpdated {
     string text = 1;
     bool locked = 2;
     bool reserved = 3;
-    string nicopedia_uri = 4;
+    optional string nicopedia_uri = 4;
   }
   repeated Tag tags = 1;
   bool owner_locked = 2;
@@ -275,17 +291,20 @@ message TagUpdated {
 
 
 message Statistics {
-  
+
   optional int64 viewers = 1;
 
-  
+
   optional int64 comments = 2;
 
-  
+
   optional int64 ad_points = 3;
 
-  
+
   optional int64 gift_points = 4;
+
+
+  optional int64 timeshift_reservations = 6;
 
   reserved 5;
 }
@@ -295,37 +314,37 @@ message Marquee {
   message Display {
     OperatorComment operator_comment = 1;
 
-    
+
     optional google.protobuf.Duration duration = 3;
   }
-  
+
   optional Display display = 1;
 }
 
 
 message Enquete {
-  
+
   string question = 1;
 
-  
+
   message Choice {
-    
+
     string description = 1;
 
-    
-    
+
+
     optional int32 per_mille = 3;
   }
   repeated Choice choices = 2;
 
   enum Status {
-    
+
     Closed = 0;
 
-    
+
     Poll = 1;
 
-    
+
     Result = 2;
   }
 

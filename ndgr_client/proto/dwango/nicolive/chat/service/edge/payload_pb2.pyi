@@ -3,229 +3,248 @@
 isort:skip_file
 """
 
-import builtins
-import collections.abc
-import ndgr_client.proto.dwango.nicolive.chat.data.message_pb2
-import ndgr_client.proto.dwango.nicolive.chat.data.origin_pb2
-import ndgr_client.proto.dwango.nicolive.chat.data.state_pb2
-import google.protobuf.descriptor
-import google.protobuf.internal.containers
-import google.protobuf.internal.enum_type_wrapper
-import google.protobuf.message
-import google.protobuf.timestamp_pb2
+from collections import abc as _abc
+from ndgr_client.proto.dwango.nicolive.chat.data import message_pb2 as _message_pb2
+from ndgr_client.proto.dwango.nicolive.chat.data import origin_pb2 as _origin_pb2
+from ndgr_client.proto.dwango.nicolive.chat.data import state_pb2 as _state_pb2
+from google.protobuf import descriptor as _descriptor
+from google.protobuf import message as _message
+from google.protobuf import timestamp_pb2 as _timestamp_pb2
+from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+import builtins as _builtins
 import sys
-import typing
+import typing as _typing
 
 if sys.version_info >= (3, 10):
-    import typing as typing_extensions
+    from typing import TypeAlias as _TypeAlias
 else:
-    import typing_extensions
+    from typing_extensions import TypeAlias as _TypeAlias
 
-DESCRIPTOR: google.protobuf.descriptor.FileDescriptor
+DESCRIPTOR: _descriptor.FileDescriptor
 
-@typing.final
-class ChunkedMessage(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ChunkedMessage(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
     class _Signal:
-        ValueType = typing.NewType("ValueType", builtins.int)
-        V: typing_extensions.TypeAlias = ValueType
+        ValueType = _typing.NewType("ValueType", _builtins.int)
+        V: _TypeAlias = ValueType  # noqa: Y015
 
-    class _SignalEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ChunkedMessage._Signal.ValueType], builtins.type):
-        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+    class _SignalEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[ChunkedMessage._Signal.ValueType], _builtins.type):
+        DESCRIPTOR: _descriptor.EnumDescriptor
         Flushed: ChunkedMessage._Signal.ValueType  # 0
 
     class Signal(_Signal, metaclass=_SignalEnumTypeWrapper): ...
     Flushed: ChunkedMessage.Signal.ValueType  # 0
 
-    @typing.final
-    class Meta(google.protobuf.message.Message):
-        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    @_typing.final
+    class Meta(_message.Message):
+        DESCRIPTOR: _descriptor.Descriptor
 
-        ID_FIELD_NUMBER: builtins.int
-        AT_FIELD_NUMBER: builtins.int
-        ORIGIN_FIELD_NUMBER: builtins.int
-        id: builtins.str
-        @property
-        def at(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
-        @property
-        def origin(self) -> ndgr_client.proto.dwango.nicolive.chat.data.origin_pb2.NicoliveOrigin: ...
+        ID_FIELD_NUMBER: _builtins.int
+        AT_FIELD_NUMBER: _builtins.int
+        ORIGIN_FIELD_NUMBER: _builtins.int
+        id: _builtins.str
+        @_builtins.property
+        def at(self) -> _timestamp_pb2.Timestamp: ...
+        @_builtins.property
+        def origin(self) -> _origin_pb2.NicoliveOrigin: ...
         def __init__(
             self,
             *,
-            id: builtins.str = ...,
-            at: google.protobuf.timestamp_pb2.Timestamp | None = ...,
-            origin: ndgr_client.proto.dwango.nicolive.chat.data.origin_pb2.NicoliveOrigin | None = ...,
+            id: _builtins.str = ...,
+            at: _timestamp_pb2.Timestamp | None = ...,
+            origin: _origin_pb2.NicoliveOrigin | None = ...,
         ) -> None: ...
-        def HasField(self, field_name: typing.Literal["at", b"at", "origin", b"origin"]) -> builtins.bool: ...
-        def ClearField(self, field_name: typing.Literal["at", b"at", "id", b"id", "origin", b"origin"]) -> None: ...
+        _HasFieldArgType: _TypeAlias = _typing.Literal["at", b"at", "origin", b"origin"]  # noqa: Y015
+        def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+        _ClearFieldArgType: _TypeAlias = _typing.Literal["at", b"at", "id", b"id", "origin", b"origin"]  # noqa: Y015
+        def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-    META_FIELD_NUMBER: builtins.int
-    MESSAGE_FIELD_NUMBER: builtins.int
-    STATE_FIELD_NUMBER: builtins.int
-    SIGNAL_FIELD_NUMBER: builtins.int
-    signal: global___ChunkedMessage.Signal.ValueType
-    @property
-    def meta(self) -> global___ChunkedMessage.Meta: ...
-    @property
-    def message(self) -> ndgr_client.proto.dwango.nicolive.chat.data.message_pb2.NicoliveMessage: ...
-    @property
-    def state(self) -> ndgr_client.proto.dwango.nicolive.chat.data.state_pb2.NicoliveState: ...
+    META_FIELD_NUMBER: _builtins.int
+    MESSAGE_FIELD_NUMBER: _builtins.int
+    STATE_FIELD_NUMBER: _builtins.int
+    SIGNAL_FIELD_NUMBER: _builtins.int
+    signal: Global___ChunkedMessage.Signal.ValueType
+    @_builtins.property
+    def meta(self) -> Global___ChunkedMessage.Meta: ...
+    @_builtins.property
+    def message(self) -> _message_pb2.NicoliveMessage: ...
+    @_builtins.property
+    def state(self) -> _state_pb2.NicoliveState: ...
     def __init__(
         self,
         *,
-        meta: global___ChunkedMessage.Meta | None = ...,
-        message: ndgr_client.proto.dwango.nicolive.chat.data.message_pb2.NicoliveMessage | None = ...,
-        state: ndgr_client.proto.dwango.nicolive.chat.data.state_pb2.NicoliveState | None = ...,
-        signal: global___ChunkedMessage.Signal.ValueType = ...,
+        meta: Global___ChunkedMessage.Meta | None = ...,
+        message: _message_pb2.NicoliveMessage | None = ...,
+        state: _state_pb2.NicoliveState | None = ...,
+        signal: Global___ChunkedMessage.Signal.ValueType = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["message", b"message", "meta", b"meta", "payload", b"payload", "signal", b"signal", "state", b"state"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["message", b"message", "meta", b"meta", "payload", b"payload", "signal", b"signal", "state", b"state"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["payload", b"payload"]) -> typing.Literal["message", "state", "signal"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["message", b"message", "meta", b"meta", "payload", b"payload", "signal", b"signal", "state", b"state"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["message", b"message", "meta", b"meta", "payload", b"payload", "signal", b"signal", "state", b"state"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType_payload: _TypeAlias = _typing.Literal["message", "state", "signal"]  # noqa: Y015
+    _WhichOneofArgType_payload: _TypeAlias = _typing.Literal["payload", b"payload"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType_payload) -> _WhichOneofReturnType_payload | None: ...
 
-global___ChunkedMessage = ChunkedMessage
+Global___ChunkedMessage: _TypeAlias = ChunkedMessage  # noqa: Y015
 
-@typing.final
-class PackedSegment(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class PackedSegment(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    @typing.final
-    class Next(google.protobuf.message.Message):
-        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    @_typing.final
+    class Next(_message.Message):
+        DESCRIPTOR: _descriptor.Descriptor
 
-        URI_FIELD_NUMBER: builtins.int
-        uri: builtins.str
+        URI_FIELD_NUMBER: _builtins.int
+        uri: _builtins.str
         def __init__(
             self,
             *,
-            uri: builtins.str = ...,
+            uri: _builtins.str = ...,
         ) -> None: ...
-        def ClearField(self, field_name: typing.Literal["uri", b"uri"]) -> None: ...
+        _ClearFieldArgType: _TypeAlias = _typing.Literal["uri", b"uri"]  # noqa: Y015
+        def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-    @typing.final
-    class StateSnapshot(google.protobuf.message.Message):
-        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    @_typing.final
+    class StateSnapshot(_message.Message):
+        DESCRIPTOR: _descriptor.Descriptor
 
-        URI_FIELD_NUMBER: builtins.int
-        uri: builtins.str
+        URI_FIELD_NUMBER: _builtins.int
+        uri: _builtins.str
         def __init__(
             self,
             *,
-            uri: builtins.str = ...,
+            uri: _builtins.str = ...,
         ) -> None: ...
-        def ClearField(self, field_name: typing.Literal["uri", b"uri"]) -> None: ...
+        _ClearFieldArgType: _TypeAlias = _typing.Literal["uri", b"uri"]  # noqa: Y015
+        def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-    MESSAGES_FIELD_NUMBER: builtins.int
-    NEXT_FIELD_NUMBER: builtins.int
-    SNAPSHOT_FIELD_NUMBER: builtins.int
-    @property
-    def messages(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ChunkedMessage]: ...
-    @property
-    def next(self) -> global___PackedSegment.Next: ...
-    @property
-    def snapshot(self) -> global___PackedSegment.StateSnapshot: ...
+    MESSAGES_FIELD_NUMBER: _builtins.int
+    NEXT_FIELD_NUMBER: _builtins.int
+    SNAPSHOT_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def messages(self) -> _containers.RepeatedCompositeFieldContainer[Global___ChunkedMessage]: ...
+    @_builtins.property
+    def next(self) -> Global___PackedSegment.Next: ...
+    @_builtins.property
+    def snapshot(self) -> Global___PackedSegment.StateSnapshot: ...
     def __init__(
         self,
         *,
-        messages: collections.abc.Iterable[global___ChunkedMessage] | None = ...,
-        next: global___PackedSegment.Next | None = ...,
-        snapshot: global___PackedSegment.StateSnapshot | None = ...,
+        messages: _abc.Iterable[Global___ChunkedMessage] | None = ...,
+        next: Global___PackedSegment.Next | None = ...,
+        snapshot: Global___PackedSegment.StateSnapshot | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["next", b"next", "snapshot", b"snapshot"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["messages", b"messages", "next", b"next", "snapshot", b"snapshot"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["next", b"next", "snapshot", b"snapshot"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["messages", b"messages", "next", b"next", "snapshot", b"snapshot"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___PackedSegment = PackedSegment
+Global___PackedSegment: _TypeAlias = PackedSegment  # noqa: Y015
 
-@typing.final
-class ChunkedEntry(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class ChunkedEntry(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    @typing.final
-    class ReadyForNext(google.protobuf.message.Message):
-        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+    @_typing.final
+    class ReadyForNext(_message.Message):
+        DESCRIPTOR: _descriptor.Descriptor
 
-        AT_FIELD_NUMBER: builtins.int
-        at: builtins.int
+        AT_FIELD_NUMBER: _builtins.int
+        at: _builtins.int
         def __init__(
             self,
             *,
-            at: builtins.int = ...,
+            at: _builtins.int = ...,
         ) -> None: ...
-        def ClearField(self, field_name: typing.Literal["at", b"at"]) -> None: ...
+        _ClearFieldArgType: _TypeAlias = _typing.Literal["at", b"at"]  # noqa: Y015
+        def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-    BACKWARD_FIELD_NUMBER: builtins.int
-    PREVIOUS_FIELD_NUMBER: builtins.int
-    SEGMENT_FIELD_NUMBER: builtins.int
-    NEXT_FIELD_NUMBER: builtins.int
-    @property
-    def backward(self) -> global___BackwardSegment: ...
-    @property
-    def previous(self) -> global___MessageSegment: ...
-    @property
-    def segment(self) -> global___MessageSegment: ...
-    @property
-    def next(self) -> global___ChunkedEntry.ReadyForNext: ...
+    BACKWARD_FIELD_NUMBER: _builtins.int
+    PREVIOUS_FIELD_NUMBER: _builtins.int
+    SEGMENT_FIELD_NUMBER: _builtins.int
+    NEXT_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def backward(self) -> Global___BackwardSegment: ...
+    @_builtins.property
+    def previous(self) -> Global___MessageSegment: ...
+    @_builtins.property
+    def segment(self) -> Global___MessageSegment: ...
+    @_builtins.property
+    def next(self) -> Global___ChunkedEntry.ReadyForNext: ...
     def __init__(
         self,
         *,
-        backward: global___BackwardSegment | None = ...,
-        previous: global___MessageSegment | None = ...,
-        segment: global___MessageSegment | None = ...,
-        next: global___ChunkedEntry.ReadyForNext | None = ...,
+        backward: Global___BackwardSegment | None = ...,
+        previous: Global___MessageSegment | None = ...,
+        segment: Global___MessageSegment | None = ...,
+        next: Global___ChunkedEntry.ReadyForNext | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["backward", b"backward", "entry", b"entry", "next", b"next", "previous", b"previous", "segment", b"segment"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["backward", b"backward", "entry", b"entry", "next", b"next", "previous", b"previous", "segment", b"segment"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["entry", b"entry"]) -> typing.Literal["backward", "previous", "segment", "next"] | None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["backward", b"backward", "entry", b"entry", "next", b"next", "previous", b"previous", "segment", b"segment"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["backward", b"backward", "entry", b"entry", "next", b"next", "previous", b"previous", "segment", b"segment"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    _WhichOneofReturnType_entry: _TypeAlias = _typing.Literal["backward", "previous", "segment", "next"]  # noqa: Y015
+    _WhichOneofArgType_entry: _TypeAlias = _typing.Literal["entry", b"entry"]  # noqa: Y015
+    def WhichOneof(self, oneof_group: _WhichOneofArgType_entry) -> _WhichOneofReturnType_entry | None: ...
 
-global___ChunkedEntry = ChunkedEntry
+Global___ChunkedEntry: _TypeAlias = ChunkedEntry  # noqa: Y015
 
-@typing.final
-class MessageSegment(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class MessageSegment(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    FROM__FIELD_NUMBER: builtins.int
-    UNTIL_FIELD_NUMBER: builtins.int
-    URI_FIELD_NUMBER: builtins.int
-    uri: builtins.str
-    @property
-    def from_(self) -> google.protobuf.timestamp_pb2.Timestamp:
-        """Python では from が予約されているため from_ として命名している"""
+    FROM__FIELD_NUMBER: _builtins.int
+    UNTIL_FIELD_NUMBER: _builtins.int
+    URI_FIELD_NUMBER: _builtins.int
+    uri: _builtins.str
+    @_builtins.property
+    def from_(self) -> _timestamp_pb2.Timestamp:
+        """Python では from が予約語のため from_ にリネームしている"""
 
-    @property
-    def until(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    @_builtins.property
+    def until(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
         self,
         *,
-        from_: google.protobuf.timestamp_pb2.Timestamp | None = ...,
-        until: google.protobuf.timestamp_pb2.Timestamp | None = ...,
-        uri: builtins.str = ...,
+        from_: _timestamp_pb2.Timestamp | None = ...,
+        until: _timestamp_pb2.Timestamp | None = ...,
+        uri: _builtins.str = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["from_", b"from_", "until", b"until"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["from_", b"from_", "until", b"until", "uri", b"uri"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["from_", b"from_", "until", b"until"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["from_", b"from_", "until", b"until", "uri", b"uri"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___MessageSegment = MessageSegment
+Global___MessageSegment: _TypeAlias = MessageSegment  # noqa: Y015
 
-@typing.final
-class BackwardSegment(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+@_typing.final
+class BackwardSegment(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
 
-    UNTIL_FIELD_NUMBER: builtins.int
-    SEGMENT_FIELD_NUMBER: builtins.int
-    SNAPSHOT_FIELD_NUMBER: builtins.int
-    @property
-    def until(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
-    @property
-    def segment(self) -> global___PackedSegment.Next: ...
-    @property
-    def snapshot(self) -> global___PackedSegment.StateSnapshot: ...
+    UNTIL_FIELD_NUMBER: _builtins.int
+    SEGMENT_FIELD_NUMBER: _builtins.int
+    SNAPSHOT_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def until(self) -> _timestamp_pb2.Timestamp: ...
+    @_builtins.property
+    def segment(self) -> Global___PackedSegment.Next: ...
+    @_builtins.property
+    def snapshot(self) -> Global___PackedSegment.StateSnapshot: ...
     def __init__(
         self,
         *,
-        until: google.protobuf.timestamp_pb2.Timestamp | None = ...,
-        segment: global___PackedSegment.Next | None = ...,
-        snapshot: global___PackedSegment.StateSnapshot | None = ...,
+        until: _timestamp_pb2.Timestamp | None = ...,
+        segment: Global___PackedSegment.Next | None = ...,
+        snapshot: Global___PackedSegment.StateSnapshot | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["segment", b"segment", "snapshot", b"snapshot", "until", b"until"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["segment", b"segment", "snapshot", b"snapshot", "until", b"until"]) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["segment", b"segment", "snapshot", b"snapshot", "until", b"until"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["segment", b"segment", "snapshot", b"snapshot", "until", b"until"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
 
-global___BackwardSegment = BackwardSegment
+Global___BackwardSegment: _TypeAlias = BackwardSegment  # noqa: Y015

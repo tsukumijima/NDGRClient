@@ -19,7 +19,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-import niquests
+import curl_cffi.requests as requests
 
 
 # Python の予約語一覧
@@ -59,7 +59,7 @@ def fetch_proto_file_paths() -> list[str]:
     """
 
     api_url = f'https://api.github.com/repos/{GITHUB_REPO}/git/trees/{GITHUB_BRANCH}?recursive=1'
-    response = niquests.get(api_url, headers={'Accept': 'application/vnd.github.v3+json'})
+    response = requests.get(api_url, headers={'Accept': 'application/vnd.github.v3+json'})
     response.raise_for_status()
     tree_data = response.json()
 
@@ -87,7 +87,7 @@ def download_proto_file(relative_path: str) -> str:
     """
 
     raw_url = f'https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{PROTO_DIR_IN_REPO}/{relative_path}'
-    response = niquests.get(raw_url)
+    response = requests.get(raw_url)
     response.raise_for_status()
     if response.text is None:
         raise RuntimeError(f'Failed to download proto file: {relative_path}')

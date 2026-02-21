@@ -11,11 +11,12 @@ from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
 
 import anyio
+import curl_cffi.requests as requests
 import lxml.etree as ET
-import niquests
 import websockets
 from bs4 import BeautifulSoup, Tag
-from niquests.cookies import RequestsCookieJar
+from curl_cffi.requests.exceptions import HTTPError as CurlHTTPError
+from curl_cffi.requests.exceptions import RequestException as CurlRequestException
 from rich import print
 from rich.rule import Rule
 from rich.style import Style
@@ -120,17 +121,22 @@ class NDGRClient:
         # pathlib.Path が渡された場合は anyio.Path に変換して保持する
         self.log_path: anyio.Path | None = anyio.Path(log_path) if isinstance(log_path, Path) else log_path
 
-        # niquests の非同期 HTTP クライアントのインスタンスを作成
-        ## retries=1 を指定して HTTP/2 GOAWAY (graceful shutdown) 受信時の自動再接続を有効にする (httpx と同等の1回リトライ)
-        ## niquests の HTTP/3 実装はストリーミング接続周りにバグがあるようで現状安定運用に向かないため、無効化する
-        self.http_client = niquests.AsyncSession(headers=self.HTTP_HEADERS, retries=1, disable_http3=True)
+        # curl-cffi の非同期 HTTP クライアントのインスタンスを作成
+        ## impersonate='chrome' で Chrome と同等の TLS / HTTP フィンガープリントに偽装する
+        ## http_version='v3' で HTTP/3 を優先し、利用できない場合はサーバーが受け付ける HTTP バージョンにフォールバックする
+        self.http_client = requests.AsyncSession(
+            headers=self.HTTP_HEADERS,
+            impersonate='chrome',
+            http_version='v3',
+            default_headers=False,
+        )
 
     @property
     def is_logged_in(self) -> bool:
         """
         ニコニコアカウントがログイン済みかどうかを返す
         """
-        return 'user_session' in cast(RequestsCookieJar, self.http_client.cookies)
+        return 'user_session' in self.http_client.cookies
 
     async def login(
         self, mail: str | None = None, password: str | None = None, cookies: dict[str, str] | None = None
@@ -150,7 +156,7 @@ class NDGRClient:
 
         Raises:
             ValueError: mail と password の両方、または cookies のいずれかが指定されていない場合
-            niquests.exceptions.HTTPError: ログインリクエストが失敗した場合
+            curl_cffi.requests.exceptions.HTTPError: ログインリクエストが失敗した場合
         """
 
         if (mail is None or password is None) and cookies is None:
@@ -158,7 +164,7 @@ class NDGRClient:
 
         # Cookie 辞書が指定されたとき、HTTP クライアントに Cookie を設定
         if cookies is not None:
-            cookie_jar = cast(RequestsCookieJar, self.http_client.cookies)
+            cookie_jar = self.http_client.cookies
             for key, value in cookies.items():
                 cookie_jar.set(key, value, domain='.nicovideo.jp', path='/')
 
@@ -170,16 +176,14 @@ class NDGRClient:
 
         # メールアドレスとパスワードが指定されたとき、ログイン処理を実行
         else:
+            assert mail is not None and password is not None
             try:
                 # ログイン処理に悪影響を及ぼさないよう、既存の Cookie を削除
                 self.http_client.cookies.clear()
                 # この API にアクセスすると Cookie (user_session) が HTTP クライアントにセットされる
                 response = await self.http_client.post(
                     'https://account.nicovideo.jp/api/v1/login',
-                    data={
-                        'mail': mail,
-                        'password': password,
-                    },
+                    data={'mail': mail, 'password': password},
                     timeout=15.0,
                 )
                 response.raise_for_status()
@@ -190,14 +194,14 @@ class NDGRClient:
                     f'Login successful. Niconico User ID: {response.headers["x-niconico-id"]}', verbose_log=True
                 )
                 await self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
-            except niquests.exceptions.HTTPError:
+            except CurlHTTPError:
                 await self.print('Error during login:')
                 await self.print(traceback.format_exc())
                 await self.print(Rule(characters='-', style=Style(color='#E33157')))
                 raise
 
         # 現在 HTTP クライアントにセットされている Cookie を返す
-        cookie_items = cast(RequestsCookieJar, self.http_client.cookies).items()
+        cookie_items = self.http_client.cookies.items()
         return {k: v for k, v in cookie_items if v is not None}
 
     @classmethod
@@ -214,7 +218,7 @@ class NDGRClient:
 
         Raises:
             ValueError: ニコニコ実況のチャンネル ID が指定されていない場合
-            niquests.exceptions.HTTPError: ニコニコ API へのリクエストに失敗した場合
+            curl_cffi.requests.exceptions.HTTPError: ニコニコ API へのリクエストに失敗した場合
         """
 
         if jikkyo_channel_id.startswith('jk') is False:
@@ -251,10 +255,13 @@ class NDGRClient:
             'jk211': ['lv345479998', 'lv345500347', 'lv345514147', 'lv345514260', 'lv345514593'],
         }  # fmt: skip
 
-        # クラスメソッドから self.http_client にはアクセスできないため、新しい niquests.AsyncSession を作成している
-        ## retries=1 を指定して HTTP/2 GOAWAY (graceful shutdown) 受信時の自動再接続を有効にする (httpx と同等の1回リトライ)
-        ## niquests の HTTP/3 実装はストリーミング接続周りにバグがあるようで現状安定運用に向かないため、無効化する
-        async with niquests.AsyncSession(headers=cls.HTTP_HEADERS, retries=1, disable_http3=True) as client:
+        # クラスメソッドから self.http_client にはアクセスできないため、新しい AsyncSession を作成している
+        async with requests.AsyncSession(
+            headers=cls.HTTP_HEADERS,
+            impersonate='chrome',
+            http_version='v3',
+            default_headers=False,
+        ) as client:
             # まずは候補となるニコニコ生放送番組 ID を収集
             candidate_nicolive_program_ids: set[str] = set()
             candidate_nicolive_program_ids.update(provisional_jikkyo_program_id_map.get(jikkyo_channel_id, []))
@@ -262,7 +269,7 @@ class NDGRClient:
             response = await client.get(f'https://ch.nicovideo.jp/{nicolive_channel_id}/live', timeout=15.0)
             response.raise_for_status()
             response_content = response.content or b''
-            soup = BeautifulSoup(response_content, 'html.parser')
+            soup = BeautifulSoup(response_content.decode('utf-8'), 'html.parser')
             live_now = soup.find('div', id='live_now')
             if live_now:
                 live_link = live_now.find(
@@ -285,7 +292,7 @@ class NDGRClient:
                         # 2 ページ目が取得できなかった場合はページを分けるほど過去の番組情報がないと考えられるため、ループを抜ける
                         break
                 past_lives_content = response.content or b''
-                soup = BeautifulSoup(past_lives_content, 'html.parser')
+                soup = BeautifulSoup(past_lives_content.decode('utf-8'), 'html.parser')
                 for a_tag in soup.find_all('a', href=True):
                     href = a_tag['href']
                     if 'https://live.nicovideo.jp/watch/' in href:
@@ -340,7 +347,7 @@ class NDGRClient:
             NDGRComment: NDGR メッセージサーバーから受信したコメント
 
         Raises:
-            niquests.exceptions.HTTPError: HTTP リクエストが失敗した場合
+            curl_cffi.requests.exceptions.HTTPError: HTTP リクエストが失敗した場合
             AssertionError: 解析に失敗した場合
             ValueError: 既に放送を終了した番組に対してストリーミングを開始しようとした場合
         """
@@ -586,7 +593,7 @@ class NDGRClient:
             list[NDGRComment]: 過去に投稿されたコメントのリスト (投稿日時昇順)
 
         Raises:
-            niquests.exceptions.HTTPError: HTTP リクエストが失敗した場合
+            curl_cffi.requests.exceptions.HTTPError: HTTP リクエストが失敗した場合
             AssertionError: 解析に失敗した場合
         """
 
@@ -745,7 +752,7 @@ class NDGRClient:
             NicoLiveProgramInfo: 解析されたニコニコ生放送の番組情報
 
         Raises:
-            niquests.exceptions.HTTPError: HTTP リクエストが失敗した場合
+            curl_cffi.requests.exceptions.HTTPError: HTTP リクエストが失敗した場合
             ValueError: タイムシフト視聴を開始できない場合
             AssertionError: 解析に失敗した場合
         """
@@ -807,7 +814,7 @@ class NDGRClient:
                 ch_response = await self.http_client.get(ch_live_page_url, timeout=15.0)
                 ch_response.raise_for_status()
                 ch_response_content = ch_response.content or b''
-                ch_soup = BeautifulSoup(ch_response_content, 'html.parser')
+                ch_soup = BeautifulSoup(ch_response_content.decode('utf-8'), 'html.parser')
                 live_now_div = ch_soup.find('div', id='live_now')
                 if live_now_div:
                     live_link_tag = live_now_div.find(
@@ -917,7 +924,7 @@ class NDGRClient:
             str: 当該番組に対応する NDGR View API の URI
 
         Raises:
-            niquests.exceptions.HTTPError: HTTP リクエストが失敗した場合
+            curl_cffi.requests.exceptions.HTTPError: HTTP リクエストが失敗した場合
             AssertionError: 解析に失敗した場合
         """
 
@@ -1058,10 +1065,7 @@ class NDGRClient:
                     response.raise_for_status()
 
                     # Protobuf チャンクを読み取る
-                    # chunk_size はデフォルトの -1 (バッファリングなし / データ到着次第即座に返す) を使用する
-                    ## chunk_size に大きな値を指定すると、そのバイト数分のデータが溜まるまでブロックされ、
-                    ## リアルタイムストリーミングで深刻な遅延が発生する
-                    async for chunk in await response.iter_content():
+                    async for chunk in response.aiter_content():
                         assert isinstance(chunk, bytes)
                         protobuf_reader.addNewChunk(chunk)
                         while True:
@@ -1074,7 +1078,7 @@ class NDGRClient:
                             # ジェネレータとして読み取った Protobuf を返す
                             yield protobuf
                 finally:
-                    await response.close()
+                    await response.aclose()
 
                 # Protobuf ストリームを最後まで読み切ったら、ループを抜ける
                 await self.print(
@@ -1085,7 +1089,7 @@ class NDGRClient:
                 break
 
             # HTTP 接続エラー発生時、しばらく待ってからリトライを試みる
-            except niquests.exceptions.RequestException:
+            except CurlRequestException:
                 if attempt < max_retries - 1:
                     await self.print(f'Error fetching {api_name}. Retrying in {retry_delay} seconds...')
                     await self.print(traceback.format_exc())

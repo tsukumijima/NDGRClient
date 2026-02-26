@@ -5,6 +5,7 @@ import io
 import json
 import re
 import traceback
+import warnings
 from collections.abc import AsyncGenerator, Sequence
 from datetime import date, datetime
 from pathlib import Path
@@ -130,6 +131,34 @@ class NDGRClient:
             http_version='v3',
             default_headers=False,
         )
+
+        # close() が呼び出されたかどうかを追跡するフラグ
+        ## 複数回 close() が呼び出されても安全に動作するようにするために使用する
+        self._is_closed: bool = False
+
+    async def __aenter__(self) -> NDGRClient:
+        """
+        非同期コンテキストマネージャーのエントリポイント。
+        NDGRClient インスタンス自身を返す。
+
+        Returns:
+            NDGRClient: NDGRClient インスタンス自身
+        """
+
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> None:
+        """
+        非同期コンテキストマネージャーの終了処理。
+        内部の HTTP クライアントのリソースを解放する。
+        """
+
+        await self.close()
 
     @property
     def is_logged_in(self) -> bool:
@@ -1302,3 +1331,40 @@ class NDGRClient:
             xml_string.replace('<packet>\n', '').replace('</packet>', '').replace('<packet/>', '')
         )  # <packet> タグを除去
         return xml_string.rstrip()
+
+    async def close(self) -> None:
+        """
+        NDGRClient が保持する HTTP クライアントのリソースを解放する。
+        このメソッドは冪等であり、複数回呼び出しても安全に動作する。
+
+        NDGRClient の使用が完了した後は、必ずこのメソッドを呼び出してリソースを解放する必要がある。
+        リソースを解放しないと、未解放の curl-cffi `AsyncSession` が蓄積し、
+        メモリリークやパフォーマンス劣化の原因となる。
+        """
+
+        # 既にクローズ済みの場合は何もしない (冪等性の保証)
+        if self._is_closed is True:
+            return
+
+        # curl-cffi の AsyncSession.close() を呼び出して HTTP クライアントのリソースを解放する
+        await self.http_client.close()
+
+        # curl-cffi の AsyncSession.close() と同様に、クローズ成功後にフラグを立てる
+        ## close() が失敗した場合にリトライ可能にし、__del__ の ResourceWarning も抑制されないようにする
+        self._is_closed = True
+
+    def __del__(self) -> None:
+        """
+        close() を呼ばずに GC されたインスタンスに対して ResourceWarning を発行するセーフティネット。
+        実際のリソース解放は行わない（__del__() 内で async メソッドを呼べないため）。
+        """
+
+        # __init__() がバリデーションエラー等で途中で失敗した場合、_is_closed が未設定のまま
+        # __del__() が呼ばれる可能性があるため、getattr() で安全に読み取る
+        ## _is_closed が存在しない場合はリソースが確保されていないため、警告は不要
+        if getattr(self, '_is_closed', True) is not True:
+            warnings.warn(
+                f'Unclosed {self!r}. Call "await client.close()" to release resources.',
+                ResourceWarning,
+                source=self,
+            )

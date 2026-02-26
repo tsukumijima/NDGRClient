@@ -24,20 +24,20 @@ async def stream(
     print(Rule(characters='-', style=Style(color='#E33157')))
 
     # NDGRClient を初期化
-    ndgr_client = NDGRClient(nicolive_program_id, verbose=verbose, console_output=True)
+    # 非同期コンテキストマネージャーを使ってリソースの確実な解放を保証する
+    async with NDGRClient(nicolive_program_id, verbose=verbose, console_output=True) as ndgr_client:
+        # メールアドレスとパスワードが指定されている場合はログイン
+        if mail is not None and password is not None:
+            await ndgr_client.login(mail, password)
 
-    # メールアドレスとパスワードが指定されている場合はログイン
-    if mail is not None and password is not None:
-        await ndgr_client.login(mail, password)
-
-    # コメントをエンドレスでストリーミング開始
-    async for comment in ndgr_client.streamComments():
-        if verbose is True:
-            print(
-                f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Comment Received. [grey70](ID: {comment.id})[/grey70]'
-            )
-        print(str(comment))
-        print(Rule(characters='-', style=Style(color='#E33157')))
+        # コメントをエンドレスでストリーミング開始
+        async for comment in ndgr_client.streamComments():
+            if verbose is True:
+                print(
+                    f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S.%f")}] Comment Received. [grey70](ID: {comment.id})[/grey70]'
+                )
+            print(str(comment))
+            print(Rule(characters='-', style=Style(color='#E33157')))
 
 
 @app.command(help='Download backward comments (kakolog) from NDGR server.')
@@ -59,25 +59,25 @@ async def download(
     comment_counts: dict[str, int] = {}
     for jid in jikkyo_ids:
         # NDGRClient を初期化
-        ndgr_client = NDGRClient(jid, verbose=verbose, console_output=True)
+        # 非同期コンテキストマネージャーを使ってリソースの確実な解放を保証する
+        async with NDGRClient(jid, verbose=verbose, console_output=True) as ndgr_client:
+            # メールアドレスとパスワードが指定されている場合はログイン
+            if mail is not None and password is not None:
+                await ndgr_client.login(mail, password)
 
-        # メールアドレスとパスワードが指定されている場合はログイン
-        if mail is not None and password is not None:
-            await ndgr_client.login(mail, password)
+            # コメントをダウンロード
+            comments = await ndgr_client.downloadBackwardComments()
+            comment_counts[jid] = len(comments)
 
-        # コメントをダウンロード
-        comments = await ndgr_client.downloadBackwardComments()
-        comment_counts[jid] = len(comments)
-
-        # output_dir に {jid}.nicojk として保存
-        # anyio.Path を使って非同期でファイル I/O を行い、イベントループのブロックを回避する
-        async_output_dir = anyio.Path(output_dir)
-        await async_output_dir.mkdir(parents=True, exist_ok=True)
-        async with await (async_output_dir / f'{jid}.nicojk').open(mode='w', encoding='utf-8') as f:
-            await f.write(NDGRClient.convertToXMLString(comments))
-        print(f'Total comments for {jid}: {comment_counts[jid]}')
-        print(f'Saved to {output_dir / f"{jid}.nicojk"}.')
-        print(Rule(characters='=', style=Style(color='#E33157')))
+            # output_dir に {jid}.nicojk として保存
+            # anyio.Path を使って非同期でファイル I/O を行い、イベントループのブロックを回避する
+            async_output_dir = anyio.Path(output_dir)
+            await async_output_dir.mkdir(parents=True, exist_ok=True)
+            async with await (async_output_dir / f'{jid}.nicojk').open(mode='w', encoding='utf-8') as f:
+                await f.write(NDGRClient.convertToXMLString(comments))
+            print(f'Total comments for {jid}: {comment_counts[jid]}')
+            print(f'Saved to {output_dir / f"{jid}.nicojk"}.')
+            print(Rule(characters='=', style=Style(color='#E33157')))
 
     if nicolive_program_id == 'all':
         print('Download completed for all channels.')

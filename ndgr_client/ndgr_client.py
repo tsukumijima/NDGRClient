@@ -9,7 +9,7 @@ import warnings
 from collections.abc import AsyncGenerator, Sequence
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Literal, TypeVar, cast
+from typing import Any, Final, Literal, TypeVar, cast
 
 import anyio
 import curl_cffi.requests as requests
@@ -35,6 +35,12 @@ from ndgr_client.proto.dwango.nicolive.chat.service.edge import payload_pb2 as c
 from ndgr_client.protobuf_stream_reader import ProtobufStreamReader
 
 
+class NDGRStreamingSessionError(Exception):
+    """
+    NDGR コメント受信セッション全体の再初期化が必要な場合に送出する例外。
+    """
+
+
 class NDGRClient:
     """
     NDGR メッセージサーバーのクライアント実装
@@ -48,7 +54,7 @@ class NDGRClient:
     """
 
     # HTTP ヘッダー を Chrome 144 に偽装
-    HTTP_HEADERS = {
+    HTTP_HEADERS: Final[dict[str, str]] = {
         'accept': '*/*',
         'accept-encoding': 'gzip, deflate, br',
         'accept-language': 'ja',
@@ -64,7 +70,7 @@ class NDGRClient:
     }
 
     # 旧来の実況チャンネル ID とニコニコチャンネル ID のマッピング
-    JIKKYO_CHANNEL_ID_MAP: dict[str, str] = {
+    JIKKYO_CHANNEL_ID_MAP: Final[dict[str, str]] = {
         'jk1': 'ch2646436',
         'jk2': 'ch2646437',
         'jk4': 'ch2646438',
@@ -78,6 +84,14 @@ class NDGRClient:
         'jk211': 'ch2646846',
         'jk991': 'ch2650071',  # 2026年 WBC 実況用特設チャンネル (jk-wbc) を、便宜上 jk991 として割り当てる
     }
+
+    # ストリーミング障害時の再試行待機時間
+    STREAM_RETRY_DELAY_SECONDS: Final[int] = 10
+
+    # NDGR View / Segment API からのイベントがこの秒数以上途絶えたらセッション異常とみなす
+    ## fetch_program_info() は約 65 秒間隔でポーリングするため、NDGR ストリーム停止後に
+    ## program_info_task が ENDED/RESTART を返すまでの猶予を確保できるよう、余裕を持たせている
+    STREAM_ACTIVITY_TIMEOUT_SECONDS: Final[int] = 90
 
     def __init__(
         self,
@@ -124,18 +138,84 @@ class NDGRClient:
         self.log_path: anyio.Path | None = anyio.Path(log_path) if isinstance(log_path, Path) else log_path
 
         # curl-cffi の非同期 HTTP クライアントのインスタンスを作成
-        ## impersonate='chrome' で Chrome と同等の TLS / HTTP フィンガープリントに偽装する
-        ## http_version='v3' で HTTP/3 を優先し、利用できない場合はサーバーが受け付ける HTTP バージョンにフォールバックする
-        self.http_client = requests.AsyncSession(
-            headers=self.HTTP_HEADERS,
+        self.http_client = self._create_http_client()
+
+        # close() が呼び出されたかどうかを追跡するフラグ
+        ## 複数回 close() が呼び出されても安全に動作するようにするために使用する
+        self._is_closed: bool = False
+
+    @classmethod
+    def _create_http_client(cls) -> requests.AsyncSession[requests.Response]:
+        """
+        curl-cffi の非同期 HTTP クライアントを生成する。
+
+        Returns:
+            requests.AsyncSession[requests.Response]: 初期化済みの curl-cffi の非同期 HTTP クライアント
+        """
+
+        # impersonate='chrome' で Chrome と同等の TLS / HTTP フィンガープリントに偽装する
+        # http_version='v3' で HTTP/3 を優先し、利用できない場合はサーバーが受け付ける HTTP バージョンにフォールバックする
+        return requests.AsyncSession(
+            headers=cls.HTTP_HEADERS,
             impersonate='chrome',
             http_version='v3',
             default_headers=False,
         )
 
-        # close() が呼び出されたかどうかを追跡するフラグ
-        ## 複数回 close() が呼び出されても安全に動作するようにするために使用する
-        self._is_closed: bool = False
+    def _export_cookies(self) -> dict[str, str]:
+        """
+        現在の HTTP クライアントに保存されている Cookie を辞書として取得する。
+
+        Returns:
+            dict[str, str]: Cookie のキーと値
+        """
+
+        cookie_items = self.http_client.cookies.items()
+        return {key: value for key, value in cookie_items if value is not None}
+
+    @staticmethod
+    def _import_cookies(http_client: requests.AsyncSession[requests.Response], cookies: dict[str, str]) -> None:
+        """
+        Cookie 辞書を指定した HTTP クライアントへ復元する。
+
+        Args:
+            http_client (requests.AsyncSession[requests.Response]): Cookie を設定する HTTP クライアント
+            cookies (dict[str, str]): 復元する Cookie 辞書
+        """
+
+        for key, value in cookies.items():
+            http_client.cookies.set(key, value, domain='.nicovideo.jp', path='/')
+
+    async def _recreate_http_client(
+        self,
+        reason: str,
+        exception: BaseException | None = None,
+    ) -> None:
+        """
+        内部状態破損やストリーミング異常から回復するため、HTTP クライアントを再生成する。
+        引き継ぎの際、既存の Cookie は引き継がれる。
+        古い HTTP クライアントの close() に失敗した場合でも、新しい HTTP クライアントへの切り替えは継続される。
+
+        Args:
+            reason (str): 再生成理由
+            exception (BaseException | None): 再生成のきっかけとなった例外
+        """
+
+        preserved_cookies = self._export_cookies()
+        old_http_client = self.http_client
+
+        self.http_client = self._create_http_client()
+        self._import_cookies(self.http_client, preserved_cookies)
+
+        await self.print(f'Reinitializing HTTP session. Reason: {reason}')
+        await self.print(Rule(characters='-', style=Style(color='#E33157')))
+
+        try:
+            await old_http_client.close()
+        except Exception:
+            await self.print('Failed to close the previous HTTP session while reinitializing.')
+            await self.print(traceback.format_exc())
+            await self.print(Rule(characters='-', style=Style(color='#E33157')))
 
     async def __aenter__(self) -> NDGRClient:
         """
@@ -377,10 +457,23 @@ class NDGRClient:
             NDGRComment: NDGR メッセージサーバーから受信したコメント
 
         Raises:
-            curl_cffi.requests.exceptions.HTTPError: HTTP リクエストが失敗した場合
-            AssertionError: 解析に失敗した場合
             ValueError: 既に放送を終了した番組に対してストリーミングを開始しようとした場合
         """
+
+        class StreamTaskEvent(TypedDict):
+            """
+            コメント受信タスクの状態変化を表すイベント。
+
+            Attributes:
+                kind (Literal['chunked_entries_completed', 'chunked_entries_failed', 'segment_completed', 'segment_failed']):
+                    発生したイベントの種類
+                segment_uri (str | None): イベントの対象となった NDGR Segment API の URI
+                exception (BaseException | None): タスクが失敗した場合の例外
+            """
+
+            kind: Literal['chunked_entries_completed', 'chunked_entries_failed', 'segment_completed', 'segment_failed']
+            segment_uri: str | None
+            exception: BaseException | None
 
         async def stream_comments_inner() -> AsyncGenerator[NDGRComment | Literal['ENDED', 'RESTART'], None]:
             """
@@ -414,8 +507,78 @@ class NDGRClient:
 
             # fetch_chunked_message() で受信したコメントを yield で返すための Queue
             comment_queue: asyncio.Queue[NDGRComment] = asyncio.Queue()
+            # バックグラウンドタスクの完了・異常終了を通知する Queue
+            stream_task_event_queue: asyncio.Queue[StreamTaskEvent] = asyncio.Queue()
             # アクティブな ChunkedMessage 受信タスクを格納する辞書
             active_segments: dict[str, asyncio.Task[None]] = {}
+            # NDGR View / Segment API から最後にイベントを受信した時刻
+            last_stream_activity_time = asyncio.get_running_loop().time()
+
+            def mark_stream_activity() -> None:
+                """
+                NDGR View / Segment API からのイベント受信時刻を更新する。
+                """
+
+                nonlocal last_stream_activity_time
+                last_stream_activity_time = asyncio.get_running_loop().time()
+
+            def handle_chunked_entries_task_done(task: asyncio.Task[None]) -> None:
+                """
+                NDGR View API 受信タスクの完了状態を監視キューへ通知する。
+
+                Args:
+                    task (asyncio.Task[None]): 完了したタスク
+                """
+
+                if task.cancelled() is True:
+                    return
+
+                exception = task.exception()
+                if exception is None:
+                    stream_task_event_queue.put_nowait(
+                        {
+                            'kind': 'chunked_entries_completed',
+                            'segment_uri': None,
+                            'exception': None,
+                        }
+                    )
+                else:
+                    stream_task_event_queue.put_nowait(
+                        {
+                            'kind': 'chunked_entries_failed',
+                            'segment_uri': None,
+                            'exception': exception,
+                        }
+                    )
+
+            def create_segment_task(segment: chat.MessageSegment) -> asyncio.Task[None]:
+                """
+                NDGR Segment API 受信タスクを生成し、完了状態を監視キューへ通知する。
+
+                Args:
+                    segment (chat.MessageSegment): 受信対象のセグメント情報
+
+                Returns:
+                    asyncio.Task[None]: 生成した受信タスク
+                """
+
+                task = asyncio.create_task(fetch_chunked_message(segment))
+
+                def handle_segment_task_done(completed_task: asyncio.Task[None]) -> None:
+                    if completed_task.cancelled() is True:
+                        return
+
+                    exception = completed_task.exception()
+                    stream_task_event_queue.put_nowait(
+                        {
+                            'kind': 'segment_failed' if exception is not None else 'segment_completed',
+                            'segment_uri': segment.uri,
+                            'exception': exception,
+                        }
+                    )
+
+                task.add_done_callback(handle_segment_task_done)
+                return task
 
             async def fetch_program_info() -> Literal['RESTART', 'ENDED']:
                 """
@@ -484,6 +647,9 @@ class NDGRClient:
                     while retry_count < 3:
                         try:
                             async for chunked_entry in self.fetchChunkedEntries(view_api_uri, at):
+                                # NDGR View / Segment API からのイベント受信時刻を更新
+                                mark_stream_activity()
+
                                 # NDGR Segment API への接続情報を取得
                                 ## 現在、現在受信中のセグメントの配信終了時刻の 6 秒前に次のセグメントへの接続情報が配信される仕様になっている
                                 ## 次のセグメントへの接続情報を受信次第、即座にセグメント受信タスクを開始する
@@ -508,7 +674,7 @@ class NDGRClient:
                                     # 新しいタスクを作成せずに既存のタスクを継続して使用する
                                     if segment.uri not in active_segments:
                                         # 新しい ChunkedMessage 受信タスクを作成し、開始
-                                        task = asyncio.create_task(fetch_chunked_message(segment))
+                                        task = create_segment_task(segment)
                                         active_segments[segment.uri] = task
                                     else:
                                         await self.print(
@@ -547,6 +713,9 @@ class NDGRClient:
 
                 try:
                     async for comment in self.fetchChunkedMessages(segment.uri):
+                        # NDGR View / Segment API からのイベント受信時刻を更新
+                        mark_stream_activity()
+                        # NDGRComment をコメントキューに格納
                         await comment_queue.put(comment)
                 except KeyboardInterrupt:
                     raise
@@ -554,27 +723,70 @@ class NDGRClient:
                     await self.print('Error fetching chunked messages:')
                     await self.print(traceback.format_exc())
                     await self.print(Rule(characters='-', style=Style(color='#E33157')))
+                    raise
                 finally:
                     # 配信終了時刻を過ぎて ChunkedMessage 受信が完了したらアクティブリストから削除
                     active_segments.pop(segment.uri, None)
 
+            async def watch_stream_activity() -> None:
+                """
+                NDGR View / Segment API からのイベントが長時間途絶えた場合に、
+                ストリーミングセッションを再初期化するための例外を送出する。
+                """
+
+                while True:
+                    await asyncio.sleep(5)
+                    idle_time = asyncio.get_running_loop().time() - last_stream_activity_time
+                    if idle_time >= self.STREAM_ACTIVITY_TIMEOUT_SECONDS:
+                        raise NDGRStreamingSessionError(
+                            'NDGR stream activity timed out before the program monitor detected a restart or end.'
+                        )
+
             # ChunkedEntry 受信タスクを開始
             program_info_task = asyncio.create_task(fetch_program_info())
             chunked_entries_task = asyncio.create_task(fetch_chunked_entries())
+            chunked_entries_task.add_done_callback(handle_chunked_entries_task_done)
+            stream_activity_watchdog_task = asyncio.create_task(watch_stream_activity())
 
             try:
                 while True:
                     # コメントキューからコメントを取り出すタスクと番組情報状態監視タスクを同時に待機し、どちらかが完了するまで待機
                     ## 大半のケースでコメントキューの方が早く完了する (コメントは多い時だと 0.01 秒間隔で降ってくるため)
+                    comment_queue_task = asyncio.create_task(comment_queue.get())
+                    stream_task_event_queue_task = asyncio.create_task(stream_task_event_queue.get())
                     done, _ = await asyncio.wait(
-                        [asyncio.create_task(comment_queue.get()), program_info_task],
+                        [
+                            comment_queue_task,
+                            stream_task_event_queue_task,
+                            program_info_task,
+                            stream_activity_watchdog_task,
+                        ],
                         return_when=asyncio.FIRST_COMPLETED,
                     )
+                    # done に含まれなかった Queue getter タスクをキャンセルし、完了を待つ
+                    ## NOTE: asyncio.wait() が返ってからここまでの間に await がないため、
+                    ## CPython のシングルスレッドイベントループでは他のタスクが割り込む余地はない
+                    ## つまり「done に入っていなかったタスクがキャンセル前に完了する」ことは起こりえない
+                    for pending_task in [comment_queue_task, stream_task_event_queue_task]:
+                        if pending_task not in done:
+                            pending_task.cancel()
+                    await asyncio.gather(comment_queue_task, stream_task_event_queue_task, return_exceptions=True)
 
-                    # 先に完了した方のタスクを処理
+                    # asyncio.wait(FIRST_COMPLETED) の done セットには複数のタスクが含まれうる
+                    ## set のイテレーション順は不定なため、例外を送出しうる制御タスクより先に
+                    ## コメントキューのタスクを処理し、取り出されたコメントが失われないようにする
+                    if comment_queue_task in done:
+                        comment = comment_queue_task.result()
+                        yield comment
+                        comment_queue.task_done()
+
+                    # 制御タスクを処理
                     for task in done:
+                        if task is comment_queue_task:
+                            continue  # 既に処理済み
+
                         # 番組情報状態監視タスクが先に完了した: 現在コメント受信中の番組の放送が終了した
-                        if task is program_info_task:
+                        elif task is program_info_task:
                             result = cast(Literal['ENDED', 'RESTART'], task.result())
                             # ここで ENDED (処理終了) または RESTART (次の番組へ移行) を返した時点で
                             ## stream_comments_inner() での処理は終了する
@@ -584,36 +796,78 @@ class NDGRClient:
                                 await self.print('Program Ended. Switching to Next Program...')
                             await self.print(Rule(characters='-', style=Style(color='#E33157')))
                             yield result
-
-                        # コメントキューから受信したコメントを取得して yield で返す
-                        else:
-                            comment = cast(NDGRComment, await task)
-                            yield comment
-                            comment_queue.task_done()
+                        elif task is stream_activity_watchdog_task:
+                            task.result()
+                        elif task is stream_task_event_queue_task:
+                            stream_task_event = cast(StreamTaskEvent, task.result())
+                            if stream_task_event['kind'] in ('chunked_entries_failed', 'segment_failed'):
+                                exception = stream_task_event['exception']
+                                assert exception is not None
+                                raise exception
             finally:
                 # すべてのアクティブな ChunkedMessage 受信タスクをキャンセル
                 for task in active_segments.values():
                     task.cancel()
                 chunked_entries_task.cancel()
                 program_info_task.cancel()
+                stream_activity_watchdog_task.cancel()
 
                 # タスクが完全に終了するのを待つ
                 await asyncio.gather(
-                    chunked_entries_task, program_info_task, *active_segments.values(), return_exceptions=True
+                    chunked_entries_task,
+                    program_info_task,
+                    stream_activity_watchdog_task,
+                    *active_segments.values(),
+                    return_exceptions=True,
                 )
 
         # コメント受信処理を開始
         while True:
-            async for comment in stream_comments_inner():
-                # comment が 'ENDED' のときはこのメソッドでの処理を終了
-                if comment == 'ENDED':
-                    return
-                # comment が 'RESTART' のときは一度ジェネレータを中断し、新たに stream_comments_inner() を呼び出す
-                elif comment == 'RESTART':
-                    break  # ここで break すると外側の while True: ループに戻る
-                # comment が NDGRComment のときは yield する
-                else:
-                    yield comment
+            try:
+                async for comment in stream_comments_inner():
+                    # comment が 'ENDED' のときはこのメソッドでの処理を終了
+                    if comment == 'ENDED':
+                        return
+                    # comment が 'RESTART' のときは一度ジェネレータを中断し、新たに stream_comments_inner() を呼び出す
+                    elif comment == 'RESTART':
+                        break  # ここで break すると外側の while True: ループに戻る
+                    # comment が NDGRComment のときは yield する
+                    else:
+                        yield comment
+            except KeyboardInterrupt:
+                raise
+            except ValueError as ex:
+                # 放送終了済み番組への接続試行は恒久的失敗なので即座に上位へ伝播する
+                if str(ex).endswith('has already ended and cannot be streamed.'):
+                    raise
+                # 'webSocketUrl is empty.' 以外の ValueError (タイムシフト予約拒否など) も恒久的失敗として上位へ伝播する
+                if str(ex) != 'webSocketUrl is empty.':
+                    raise
+
+                # 'webSocketUrl is empty.' のみリトライ対象にする
+                ## fetchNicoLiveProgramInfo() は status が ENDED の場合を上記で先にハンドルしているため、
+                ## ここに到達するのは status が ON_AIR 等なのに webSocketUrl がまだ空のケースのみ
+                ## これはニコニコ実況の毎日 04:00 の枠切り替え直後など一時的な状態で、数十秒後に回復する
+                await self.print(
+                    'The NDGR watch page did not expose a WebSocket URL. Reinitializing the session before retrying...'
+                )
+                await self.print(traceback.format_exc())
+                await self.print(Rule(characters='-', style=Style(color='#E33157')))
+                await self._recreate_http_client('The NDGR watch page returned an empty WebSocket URL.', ex)
+                await asyncio.sleep(self.STREAM_RETRY_DELAY_SECONDS)
+                continue
+            except (CurlRequestException, OSError, TimeoutError, NDGRStreamingSessionError) as ex:
+                # CurlRequestException は HTTPError (4xx/5xx) の親クラスでもあるため、HTTP ステータスエラーもここで捕捉される
+                ## 4xx を恒久的失敗として分離する設計もあるが、以下の理由で一律リトライとしている:
+                ## - NX-Jikkyo では既知のチャンネル ID のみ使用するため、404 (存在しない番組) は実質発生しない
+                ## - CDN (CloudFront) のレート制限や一時的な認証エラーで 403 が返ることがあり、これはリトライで回復する
+                ## - ストリーミング中の NDGR Segment/View API (CDN 経由) からの 5xx は一時的障害でありリトライが正しい
+                await self.print('Unexpected streaming error. Reinitializing the session before retrying...')
+                await self.print(traceback.format_exc())
+                await self.print(Rule(characters='-', style=Style(color='#E33157')))
+                await self._recreate_http_client('The NDGR streaming session became unhealthy.', ex)
+                await asyncio.sleep(self.STREAM_RETRY_DELAY_SECONDS)
+                continue
 
     async def downloadBackwardComments(self) -> list[NDGRComment]:
         """
@@ -963,7 +1217,13 @@ class NDGRClient:
             raise ValueError('webSocketUrl is empty.')
 
         # ニコニコ生放送の視聴ページから取得した webSocketUrl に接続
-        async with websockets.connect(webSocketUrl, user_agent_header=self.HTTP_HEADERS['user-agent']) as websocket:
+        async with websockets.connect(
+            webSocketUrl,
+            user_agent_header=self.HTTP_HEADERS['user-agent'],
+            open_timeout=15,
+            close_timeout=5,
+            ping_timeout=15,
+        ) as websocket:
             # 接続が確立したら、視聴開始リクエストを送る
             await websocket.send(
                 json.dumps(
@@ -978,7 +1238,7 @@ class NDGRClient:
 
             # メッセージを受信し、NDGR View API の URI を取得する
             while True:
-                message = await websocket.recv()
+                message = await asyncio.wait_for(websocket.recv(), timeout=15)
                 data = json.loads(message)
 
                 # NDGR View API の URI を伝えるメッセージ

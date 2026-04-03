@@ -148,3 +148,4 @@ dist/
 .DS_Store
 ._*
 *.nicojk
+integration-docs/

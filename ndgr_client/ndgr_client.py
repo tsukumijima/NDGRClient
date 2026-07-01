@@ -249,6 +249,26 @@ class NDGRClient:
         """
         return 'user_session' in self.http_client.cookies
 
+    async def _validate_login_session(self) -> bool:
+        """
+        現在の Cookie がニコニコ上でログイン済みとして扱われるかを確認する。
+
+        Returns:
+            bool: ログイン済みとして扱われる場合は True
+
+        Raises:
+            curl_cffi.requests.exceptions.HTTPError: ログイン確認リクエストが失敗した場合
+        """
+
+        # 2026年6月中旬以降、ログインページは有効な user_session 付きでも
+        # x-niconico-id を返さなくなったため、通常ページでログイン状態を確認する
+        response = await self.http_client.get('https://www.nicovideo.jp/', timeout=15.0)
+        response.raise_for_status()
+
+        # x-niconico-authflag は 1 以外のログイン済み値を返す場合があるため、
+        # ユーザー ID の有無をログイン済み判定に使う
+        return 'x-niconico-id' in response.headers
+
     async def login(
         self, mail: str | None = None, password: str | None = None, cookies: dict[str, str] | None = None
     ) -> dict[str, str] | None:
@@ -279,10 +299,8 @@ class NDGRClient:
             for key, value in cookies.items():
                 cookie_jar.set(key, value, domain='.nicovideo.jp', path='/')
 
-            # https://account.nicovideo.jp/login にアクセスして x-niconico-id ヘッダーがセットされているか確認
-            response = await self.http_client.get('https://account.nicovideo.jp/login', timeout=15.0)
-            response.raise_for_status()
-            if 'x-niconico-id' not in response.headers:
+            # 保存済み Cookie が現在も有効か確認
+            if await self._validate_login_session() is False:
                 return None
 
         # メールアドレスとパスワードが指定されたとき、ログイン処理を実行
@@ -298,12 +316,10 @@ class NDGRClient:
                     timeout=15.0,
                 )
                 response.raise_for_status()
-                # x-niconico-id ヘッダーがセットされていない場合はログインに失敗している
-                if 'x-niconico-id' not in response.headers:
+                # ログイン API の応答ヘッダーに依存せず、通常ページで Cookie の有効性を確認
+                if await self._validate_login_session() is False:
                     return None
-                await self.print(
-                    f'Login successful. Niconico User ID: {response.headers["x-niconico-id"]}', verbose_log=True
-                )
+                await self.print('Login successful.', verbose_log=True)
                 await self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
             except CurlHTTPError:
                 await self.print('Error during login:')

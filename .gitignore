@@ -149,3 +149,6 @@ dist/
 ._*
 *.nicojk
 integration-docs/
+cookies.json
+oauth.json
+oauth.json.lock

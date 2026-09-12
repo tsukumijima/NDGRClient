@@ -9,14 +9,17 @@ readme = "Readme.md"
 [tool.taskipy.tasks]
 lint = "ruff check --fix ."
 format = "ruff format ."
+test = "pytest"
 # リモートリポジトリから .proto ファイルを取得し、protoc で Python コード/mypy スタブを生成する
 update-proto = "python update_proto.py"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<4.0"
+aiohttp = ">=3.12,<4"
 anyio = ">=4.7.0"
 beautifulsoup4 = ">=4.12.3"
 curl-cffi = ">=0.14.0"
+filelock = ">=3.16,<4"
 lxml = ">=5.2.2"
 lxml-stubs = ">=0.5.1"
 protobuf = ">=6.30.0"
@@ -28,12 +31,17 @@ websockets = ">=12.0"
 [tool.poetry.group.dev.dependencies]
 mypy-protobuf = ">=3.6.0"
 protoc-wheel-0 = ">=30.0"  # protobuf ライブラリの minor バージョンに合わせる必要がある
+pytest = ">=8.3.5,<9"
 ruff = ">=0.9.1"
 taskipy = ">=1.13.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+# テストの探索先を限定する
+testpaths = ["tests"]
 
 [tool.ruff]
 # 1行の長さを最大120文字に設定

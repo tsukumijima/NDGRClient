@@ -47,29 +47,28 @@ AWS 上で稼働していること、またこのような高度な仕組みは�
 継続収集には OAuth 認証を利用できます。  
 初回だけブラウザでニコニコアカウントを認可すると、以降は NDGRClient がトークンを自動更新して保存します。
 
-初回認可には、ニコニコから発行された OAuth クライアントの ID とシークレットが必要です。  
-省略時のリダイレクト URI は KonomiTV の中継 (`https://app.konomi.tv/api/redirect/niconico`) です。  
-この URI を登録したクライアントなら、追加の指定なしで認可できます。  
-自分のクライアントに別の URI を登録している場合は、`--redirect-uri` でその値を渡してください。
+> [!NOTE]  
+> 初回認可には、ニコニコから発行された OAuth クライアントの ID とシークレットが必要です。  
+> `authorize` サブコマンドを使うには、そのクライアントのコールバック URI として `https://app.konomi.tv/api/redirect/niconico` が登録済みである必要があります。  
+> 登録されていない場合は、ご自身の認可サーバーで `oauth.json` を作成する処理を用意してください。  
+> なお、発行されたアクセストークンとリフレッシュトークンの更新は、ライブラリ側で自動的に行われます。
 
 ```bash
 poetry run python -m ndgr_client authorize --oauth-file /absolute/path/oauth.json
 ```
 
-クライアント ID 、シークレットの順に入力し、表示された URL をブラウザで開いて認可してください。  
+上記コマンドを実行後、クライアント ID 、クライアントシークレットの順に入力し、表示された URL をブラウザで開いて認可を完了してください。  
 環境変数 `NICONICO_CLIENT_ID` と `NICONICO_CLIENT_SECRET` に指定した値も使用できます。  
-リダイレクト URI は `NICONICO_REDIRECT_URI` でも指定できます。
 
-localhost をリダイレクト URI にする場合は、`http://127.0.0.1:<ポート>/api/niconico/callback` を登録し、`--callback-port` を合わせてください。  
-別の中継を使う場合は、KonomiTV の中継と同じく、`state` の `server` が指す URL へブラウザを戻す実装が必要です。
+> [!TIP]
+> 中継が戻すコールバック URL にブラウザから届かない場合は、その URL をコピーし、コマンドを実行しているターミナルで `curl` してください。  
+> 認可の待ち時間は10分です。
 
-ブラウザとコマンドが別マシンの場合は、事前に `ssh -L 8765:127.0.0.1:8765 user@server` でポートを転送します。  
-ポートが使用中なら `--callback-port` で変更し、転送先のポートも合わせてください。認可の待ち時間は10分です。
+取得した OAuth 認証情報を使うには、 `stream` / `download` サブコマンドに `--oauth-file /absolute/path/oauth.json` のように oauth.json のパスを指定します。  
 
-収集時は `stream` または `download` に `--oauth-file /absolute/path/oauth.json` を指定します。  
-同じ認証情報を使うプロセスには同じファイルを指定してください。  
-更新をファイルロックで直列化するため、ファイルを複製して別々に更新する運用は避けてください。  
-認可を取り消した場合や更新用トークンが無効になった場合は、`authorize` を再実行します。
+> [!IMPORTANT]  
+> 実行中にアクセストークン・リフレッシュトークンが更新される可能性があるため、同一の認証情報を使うプロセスには同一の oauth.json を指定してください。  
+> 更新処理はファイルロックで直列化されるため、ファイルを複製して別々に更新する運用は避けてください。
 
 #### Auth with Cookie
 

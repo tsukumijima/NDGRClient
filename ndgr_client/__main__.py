@@ -21,16 +21,10 @@ async def authorize(
     oauth_file: Path = typer.Option(..., help='OAuth credentials file to create'),
     client_id: str = typer.Option(..., envvar='NICONICO_CLIENT_ID', prompt=True),
     client_secret: str = typer.Option(..., envvar='NICONICO_CLIENT_SECRET', prompt=True, hide_input=True),
-    redirect_uri: str = typer.Option(
-        NiconicoOAuth.REDIRECT_URI,
-        envvar='NICONICO_REDIRECT_URI',
-        help='OAuth redirect URI registered for the client',
-    ),
-    callback_port: int = typer.Option(25250, min=1, max=65535, help='Local callback port'),
 ):
     """ブラウザでの初回認可を案内し、コメント取得に使うトークンをファイルへ保存する。"""
 
-    await NiconicoOAuth(oauth_file).authorize(client_id, client_secret, redirect_uri, callback_port, on_url=typer.echo)
+    await NiconicoOAuth(oauth_file).authorize(client_id, client_secret, on_url=typer.echo)
     print('OAuth credentials saved successfully.')
 
 

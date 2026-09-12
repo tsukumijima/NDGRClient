@@ -89,14 +89,14 @@ class NiconicoOAuth:
         oauth_file (Path): クライアント情報とトークンを保存するファイル
     """
 
-    # KonomiTV の中継 API は、state.server で指定したサーバーの /api/niconico/callback へブラウザをリダイレクトする
+    # KonomiTV 用の OAuth 中継 API は、state.server で指定したサーバーの /api/niconico/callback へブラウザをリダイレクトする
     ## https://github.com/tsukumijima/KonomiTV-API/blob/master/src/index.ts
     REDIRECT_URI = 'https://app.konomi.tv/api/redirect/niconico'
 
     # ニコニコ OAuth のトークン API の URL
     TOKEN_API_URL = 'https://oauth.nicovideo.jp/oauth2/token'
 
-    # 同じ OAuth クライアントを使う KonomiTV と同じスコープを要求し、認可済みアカウントで再度同意を求められないようにする
+    # KonomiTV と同じ OAuth 権限スコープを要求する
     SCOPES = ' '.join(
         [
             'offline_access',
@@ -122,19 +122,14 @@ class NiconicoOAuth:
         self,
         client_id: str,
         client_secret: str,
-        redirect_uri: str = REDIRECT_URI,
-        callback_port: int = 25250,
         on_url: Callable[[str], None] = print,
     ) -> None:
         """
         初回認可用 URL を案内し、ブラウザから認可コードを受け取ってトークンへ交換・保存する。
-        このプロセスとは別のマシンでブラウザを開く場合は、コールバックを受信するポートへの SSH 転送が必要になる。
 
         Args:
             client_id (str): 登録済み OAuth クライアント ID
             client_secret (str): OAuth クライアントのシークレット
-            redirect_uri (str): OAuth クライアントへ登録したリダイレクト URI (省略時は KonomiTV の中継)
-            callback_port (int): 認可コードを受信するローカル HTTP サーバーのポート番号
             on_url (Callable[[str], None]): ブラウザで開く認可用 URL を引数として呼び出す関数
 
         Raises:
@@ -180,7 +175,8 @@ class NiconicoOAuth:
         runner = web.AppRunner(app, access_log=None)
         await runner.setup()
         try:
-            await web.TCPSite(runner, '127.0.0.1', callback_port).start()
+            # この待ち受けは認可の間だけ使うので、空いているポートを OS に割り当てる
+            await web.TCPSite(runner, '127.0.0.1', 0).start()
             port = runner.addresses[0][1]
             # 中継 API が認可後の戻り先として読む、ローカルコールバックの URL
             state = base64.b64encode(json.dumps({'server': f'http://127.0.0.1:{port}'}).encode()).decode()
@@ -189,7 +185,7 @@ class NiconicoOAuth:
                 + urlencode(
                     {
                         'client_id': client_id,
-                        'redirect_uri': redirect_uri,
+                        'redirect_uri': self.REDIRECT_URI,
                         'response_type': 'code',
                         'scope': self.SCOPES,
                         'state': state,
@@ -217,7 +213,7 @@ class NiconicoOAuth:
                             'client_id': client_id,
                             'client_secret': client_secret,
                             'code': code,
-                            'redirect_uri': redirect_uri,
+                            'redirect_uri': self.REDIRECT_URI,
                         },
                         timeout=15,
                     )

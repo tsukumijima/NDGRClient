@@ -155,12 +155,8 @@ class TestNiconicoOAuth:
                     await task
         assert (await self.oauth._load()).refresh_token.get_secret_value() == 'new-refresh'
 
-    @pytest.mark.parametrize(
-        'redirect_uri',
-        [NiconicoOAuth.REDIRECT_URI, 'http://127.0.0.1:25250/api/niconico/callback'],
-    )
-    async def test_callback_validates_request_before_exchanging_code(self, redirect_uri: str) -> None:
-        """不正なコールバックを拒否し、指定したリダイレクト URI で認可コードをトークンへ交換して保存することを確認する。"""
+    async def test_callback_validates_request_before_exchanging_code(self) -> None:
+        """不正なコールバックを拒否し、リダイレクト URI で認可コードをトークンへ交換して保存することを確認する。"""
 
         authorization_url: asyncio.Future[str] = asyncio.get_running_loop().create_future()
         token = requests.Response()
@@ -176,19 +172,13 @@ class TestNiconicoOAuth:
             session.post = AsyncMock(return_value=token)
             session.get = AsyncMock(return_value=user)
             task = asyncio.create_task(
-                self.oauth.authorize(
-                    'test-client',
-                    'test-secret',
-                    redirect_uri,
-                    callback_port=0,
-                    on_url=authorization_url.set_result,
-                )
+                self.oauth.authorize('test-client', 'test-secret', on_url=authorization_url.set_result)
             )
             try:
                 url = await asyncio.wait_for(authorization_url, timeout=5)
                 query = parse_qs(urlsplit(url).query)
                 assert query['client_id'] == ['test-client']
-                assert query['redirect_uri'] == [redirect_uri]
+                assert query['redirect_uri'] == [NiconicoOAuth.REDIRECT_URI]
                 state = json.loads(base64.b64decode(query['state'][0]))
                 assert set(state) == {'server'}
                 assert state['server'].startswith('http://127.0.0.1:')
@@ -214,5 +204,5 @@ class TestNiconicoOAuth:
             assert session.post.call_args.kwargs['data']['code'] == 'test-code'
             assert session.post.call_args.kwargs['data']['client_id'] == 'test-client'
             assert session.post.call_args.kwargs['data']['client_secret'] == 'test-secret'
-            assert session.post.call_args.kwargs['data']['redirect_uri'] == redirect_uri
+            assert session.post.call_args.kwargs['data']['redirect_uri'] == NiconicoOAuth.REDIRECT_URI
         assert (await self.oauth._load()).refresh_token.get_secret_value() == 'new-refresh'

@@ -48,14 +48,20 @@ AWS 上で稼働していること、またこのような高度な仕組みは�
 初回だけブラウザでニコニコアカウントを認可すると、以降は NDGRClient がトークンを自動更新して保存します。
 
 初回認可には、ニコニコから発行された OAuth クライアントの ID とシークレットが必要です。  
-現在の認可処理は KonomiTV 用の中継 API を使っているため、リダイレクト URI に `https://app.konomi.tv/api/redirect/niconico` を登録したクライアントの情報を指定してください。
+省略時のリダイレクト URI は KonomiTV の中継 (`https://app.konomi.tv/api/redirect/niconico`) です。  
+この URI を登録したクライアントなら、追加の指定なしで認可できます。  
+自分のクライアントに別の URI を登録している場合は、`--redirect-uri` でその値を渡してください。
 
 ```bash
 poetry run python -m ndgr_client authorize --oauth-file /absolute/path/oauth.json
 ```
 
 クライアント ID 、シークレットの順に入力し、表示された URL をブラウザで開いて認可してください。  
-環境変数 `NICONICO_CLIENT_ID` と `NICONICO_CLIENT_SECRET` に指定した値も使用できます。
+環境変数 `NICONICO_CLIENT_ID` と `NICONICO_CLIENT_SECRET` に指定した値も使用できます。  
+リダイレクト URI は `NICONICO_REDIRECT_URI` でも指定できます。
+
+localhost をリダイレクト URI にする場合は、`http://127.0.0.1:<ポート>/api/niconico/callback` を登録し、`--callback-port` を合わせてください。  
+別の中継を使う場合は、KonomiTV の中継と同じく、`state` の `server` が指す URL へブラウザを戻す実装が必要です。
 
 ブラウザとコマンドが別マシンの場合は、事前に `ssh -L 8765:127.0.0.1:8765 user@server` でポートを転送します。  
 ポートが使用中なら `--callback-port` で変更し、転送先のポートも合わせてください。認可の待ち時間は10分です。

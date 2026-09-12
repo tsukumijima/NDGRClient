@@ -92,6 +92,10 @@ class NiconicoOAuth:
     # KonomiTV の中継 API は、state.server で指定したサーバーの /api/niconico/callback へブラウザをリダイレクトする
     ## https://github.com/tsukumijima/KonomiTV-API/blob/master/src/index.ts
     REDIRECT_URI = 'https://app.konomi.tv/api/redirect/niconico'
+
+    # ニコニコ OAuth のトークン API の URL
+    TOKEN_API_URL = 'https://oauth.nicovideo.jp/oauth2/token'
+
     # 同じ OAuth クライアントを使う KonomiTV と同じスコープを要求し、認可済みアカウントで再度同意を求められないようにする
     SCOPES = ' '.join(
         [
@@ -103,7 +107,6 @@ class NiconicoOAuth:
             'user.premium',
         ]
     )
-    TOKEN_URL = 'https://oauth.nicovideo.jp/oauth2/token'
 
     def __init__(self, oauth_file: Path) -> None:
         """
@@ -119,6 +122,7 @@ class NiconicoOAuth:
         self,
         client_id: str,
         client_secret: str,
+        redirect_uri: str = REDIRECT_URI,
         callback_port: int = 25250,
         on_url: Callable[[str], None] = print,
     ) -> None:
@@ -129,6 +133,7 @@ class NiconicoOAuth:
         Args:
             client_id (str): 登録済み OAuth クライアント ID
             client_secret (str): OAuth クライアントのシークレット
+            redirect_uri (str): OAuth クライアントへ登録したリダイレクト URI (省略時は KonomiTV の中継)
             callback_port (int): 認可コードを受信するローカル HTTP サーバーのポート番号
             on_url (Callable[[str], None]): ブラウザで開く認可用 URL を引数として呼び出す関数
 
@@ -140,18 +145,14 @@ class NiconicoOAuth:
             filelock.Timeout: 認証情報ファイルのロック取得が制限時間 (60秒) 内に完了しなかった場合
         """
 
-        nonce = secrets.token_urlsafe(32)
         code_future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
 
         async def receive_callback(request: web.Request) -> web.Response:
-            """ブラウザからのコールバックに含まれる認可コードと nonce を検査する。"""
+            """ブラウザからのコールバックに含まれる認可コードを受け取る。"""
 
-            # この認可手続きで発行した nonce と一致するリクエストを1回だけ受け付ける
             query = request.query
-            if (
-                secrets.compare_digest(query.get('nonce', '').encode(), nonce.encode()) is False
-                or code_future.done() is True
-            ):
+            # この認可手続きでは認可コードを1回だけ受け取る
+            if code_future.done() is True:
                 return web.Response(
                     status=400, text='Invalid authorization callback.', headers={'Cache-Control': 'no-store'}
                 )
@@ -181,15 +182,14 @@ class NiconicoOAuth:
         try:
             await web.TCPSite(runner, '127.0.0.1', callback_port).start()
             port = runner.addresses[0][1]
-            state = base64.b64encode(
-                json.dumps({'server': f'http://127.0.0.1:{port}', 'nonce': nonce}).encode()
-            ).decode()
+            # 中継 API が認可後の戻り先として読む、ローカルコールバックの URL
+            state = base64.b64encode(json.dumps({'server': f'http://127.0.0.1:{port}'}).encode()).decode()
             on_url(
                 'https://oauth.nicovideo.jp/oauth2/authorize?'
                 + urlencode(
                     {
                         'client_id': client_id,
-                        'redirect_uri': self.REDIRECT_URI,
+                        'redirect_uri': redirect_uri,
                         'response_type': 'code',
                         'scope': self.SCOPES,
                         'state': state,
@@ -208,14 +208,16 @@ class NiconicoOAuth:
             async with AsyncFileLock(str(self.oauth_file) + '.lock', timeout=60):
                 requested_at = time.time()
                 async with requests.AsyncSession(impersonate='chrome') as session:
+                    # 認可 URL に載せたリダイレクト URI と同じ値を、トークン交換にも載せる
+                    ## ニコニコは認可時と交換時のリダイレクト URI が一致することを要求する
                     response = await session.post(
-                        self.TOKEN_URL,
+                        self.TOKEN_API_URL,
                         data={
                             'grant_type': 'authorization_code',
                             'client_id': client_id,
                             'client_secret': client_secret,
                             'code': code,
-                            'redirect_uri': self.REDIRECT_URI,
+                            'redirect_uri': redirect_uri,
                         },
                         timeout=15,
                     )
@@ -389,7 +391,7 @@ class NiconicoOAuth:
                 requested_at = time.time()
                 async with requests.AsyncSession(impersonate='chrome') as session:
                     response = await session.post(
-                        self.TOKEN_URL,
+                        self.TOKEN_API_URL,
                         data={
                             'grant_type': 'refresh_token',
                             'client_id': credentials.client_id,

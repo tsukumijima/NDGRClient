@@ -3,32 +3,53 @@ from pathlib import Path
 
 import anyio
 import typer
+from pydantic import TypeAdapter
 from rich import print
 from rich.rule import Rule
 from rich.style import Style
 
 from ndgr_client import NDGRClient, __version__
+from ndgr_client.niconico_oauth import NiconicoOAuth, NiconicoProgramEndedError
 from ndgr_client.utils import AsyncTyper
 
 
 app = AsyncTyper(help='NDGRClient: Nicolive NDGR Message Server Client Library')
 
 
+@app.command(help='Authorize a niconico account and save OAuth credentials.')
+async def authorize(
+    oauth_file: Path = typer.Option(..., help='OAuth credentials file to create'),
+    client_id: str = typer.Option(..., envvar='NICONICO_CLIENT_ID', prompt=True),
+    client_secret: str = typer.Option(..., envvar='NICONICO_CLIENT_SECRET', prompt=True, hide_input=True),
+    callback_port: int = typer.Option(25250, min=1, max=65535, help='Local callback port'),
+):
+    """ブラウザでの初回認可を案内し、コメント取得に使うトークンをファイルへ保存する。"""
+
+    await NiconicoOAuth(oauth_file).authorize(client_id, client_secret, callback_port, on_url=typer.echo)
+    print('OAuth credentials saved successfully.')
+
+
 @app.command(help='Stream comments from NDGR server.')
 async def stream(
     nicolive_program_id: str = typer.Argument(help='Nicolive program ID (ex: jk1, jk9, jk211 / lv345479988)'),
-    mail: str | None = typer.Option(default=None, help='Mail address'),
-    password: str | None = typer.Option(default=None, help='Password'),
+    oauth_file: Path | None = typer.Option(default=None, help='OAuth credentials file'),
+    cookies_file: Path | None = typer.Option(default=None, help='JSON cookie dictionary'),
     verbose: bool = typer.Option(default=False, help='Verbose output'),
 ):
     print(Rule(characters='-', style=Style(color='#E33157')))
 
     # NDGRClient を初期化
     # 非同期コンテキストマネージャーを使ってリソースの確実な解放を保証する
-    async with NDGRClient(nicolive_program_id, verbose=verbose, console_output=True) as ndgr_client:
-        # メールアドレスとパスワードが指定されている場合はログイン
-        if mail is not None and password is not None:
-            await ndgr_client.login(mail, password)
+    async with NDGRClient(
+        nicolive_program_id, verbose=verbose, console_output=True, oauth_file=oauth_file
+    ) as ndgr_client:
+        # ファイルから読み込んだ Cookie のログイン状態を確認し、無効ならコメントの収集開始前にエラーを返す
+        if cookies_file is not None:
+            cookies = TypeAdapter(dict[str, str]).validate_json(
+                await anyio.Path(cookies_file).read_text(encoding='utf-8')
+            )
+            if await ndgr_client.setCookies(cookies) is False:
+                raise ValueError('The saved cookies have expired. Import fresh cookies or use OAuth.')
 
         # コメントをエンドレスでストリーミング開始
         async for comment in ndgr_client.streamComments():
@@ -44,8 +65,8 @@ async def stream(
 async def download(
     nicolive_program_id: str = typer.Argument(help='Nicolive program ID (ex: jk1, jk9, jk211 / lv345479988) or "all"'),
     output_dir: Path = typer.Option(default=Path('.'), help='Output directory'),
-    mail: str | None = typer.Option(default=None, help='Mail address'),
-    password: str | None = typer.Option(default=None, help='Password'),
+    oauth_file: Path | None = typer.Option(default=None, help='OAuth credentials file'),
+    cookies_file: Path | None = typer.Option(default=None, help='JSON cookie dictionary'),
     verbose: bool = typer.Option(default=False, help='Verbose output'),
 ):
     print(Rule(characters='=', style=Style(color='#E33157')))
@@ -56,17 +77,31 @@ async def download(
     else:
         jikkyo_ids = [nicolive_program_id]
 
-    comment_counts: dict[str, int] = {}
+    cookies: dict[str, str] | None = None
+    if cookies_file is not None:
+        cookies = TypeAdapter(dict[str, str]).validate_json(await anyio.Path(cookies_file).read_text(encoding='utf-8'))
+
+    comment_counts: dict[str, int | None] = {}
     for jid in jikkyo_ids:
         # NDGRClient を初期化
         # 非同期コンテキストマネージャーを使ってリソースの確実な解放を保証する
-        async with NDGRClient(jid, verbose=verbose, console_output=True) as ndgr_client:
-            # メールアドレスとパスワードが指定されている場合はログイン
-            if mail is not None and password is not None:
-                await ndgr_client.login(mail, password)
+        async with NDGRClient(jid, verbose=verbose, console_output=True, oauth_file=oauth_file) as ndgr_client:
+            # ファイルから読み込んだ Cookie のログイン状態を確認し、無効ならコメントの収集開始前にエラーを返す
+            if cookies is not None:
+                if await ndgr_client.setCookies(cookies) is False:
+                    raise ValueError('The saved cookies have expired. Import fresh cookies or use OAuth.')
 
             # コメントをダウンロード
-            comments = await ndgr_client.downloadBackwardComments()
+            try:
+                comments = await ndgr_client.downloadBackwardComments()
+            except NiconicoProgramEndedError:
+                # 全件取得では接続可能な番組がないチャンネルを記録し、次のチャンネルへ進む
+                ## 番組を個別に指定した場合は、取得できなかったことをエラーとして返す
+                if nicolive_program_id != 'all':
+                    raise
+                comment_counts[jid] = None
+                print(f'Skipped {jid}: program is no longer available (PROGRAM_ENDED).')
+                continue
             comment_counts[jid] = len(comments)
 
             # output_dir に {jid}.nicojk として保存
@@ -80,9 +115,13 @@ async def download(
             print(Rule(characters='=', style=Style(color='#E33157')))
 
     if nicolive_program_id == 'all':
-        print('Download completed for all channels.')
+        print('Download completed for all available channels.')
         for jid, count in comment_counts.items():
-            print(f'{jid:>5}: {count:>5} comments')
+            # スキップしたチャンネルは、取得結果が0件だったチャンネルと区別して表示する
+            if count is None:
+                print(f'{jid:>5}: skipped (PROGRAM_ENDED)')
+            else:
+                print(f'{jid:>5}: {count:>5} comments')
         print(Rule(characters='=', style=Style(color='#E33157')))
 
 

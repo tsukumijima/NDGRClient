@@ -7,6 +7,7 @@ import re
 import traceback
 import warnings
 from collections.abc import AsyncGenerator, Sequence
+from contextlib import aclosing
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Final, Literal, TypeVar, cast
@@ -16,7 +17,6 @@ import curl_cffi.requests as requests
 import lxml.etree as ET
 import websockets
 from bs4 import BeautifulSoup, Tag
-from curl_cffi.requests.exceptions import HTTPError as CurlHTTPError
 from curl_cffi.requests.exceptions import RequestException as CurlRequestException
 from rich import print
 from rich.rule import Rule
@@ -30,6 +30,7 @@ from ndgr_client.constants import (
     NicoLiveProgramInfo,
     XMLCompatibleComment,
 )
+from ndgr_client.niconico_oauth import NiconicoOAuth
 from ndgr_client.proto.dwango.nicolive.chat.data import atoms_pb2 as atoms
 from ndgr_client.proto.dwango.nicolive.chat.service.edge import payload_pb2 as chat
 from ndgr_client.protobuf_stream_reader import ProtobufStreamReader
@@ -97,6 +98,8 @@ class NDGRClient:
     def __init__(
         self,
         nicolive_id: str,
+        *,
+        oauth_file: Path | None = None,
         verbose: bool = False,
         console_output: bool = False,
         log_path: Path | anyio.Path | None = None,
@@ -108,6 +111,7 @@ class NDGRClient:
 
         Args:
             nicolive_id (str): ニコニコ生放送の番組 ID (ex: lv345479988) or ニコニコ実況のチャンネル ID (ex: jk1, jk211)
+            oauth_file (Path | None, default=None): OAuth 認証情報ファイル (省略時は Cookie または未認証で接続)
             verbose (bool, default=False): 詳細な動作ログを出力するかどうか
             console_output (bool, default=False): 動作ログをコンソールに出力するかどうか
             log_path (Path | anyio.Path | None, default=None): 動作ログをファイルに出力する場合のパス (show_log と併用可能)
@@ -133,20 +137,22 @@ class NDGRClient:
             self.nicolive_id = nicolive_id
             self.jikkyo_channel_id = None
 
+        # HTTP クライアントを作り直してもトークンを引き継げるよう、OAuth 認証情報の保存先を保持する
+        self.oauth = NiconicoOAuth(oauth_file) if oauth_file is not None else None
         self.verbose = verbose
         self.show_log = console_output
         # pathlib.Path が渡された場合は anyio.Path に変換して保持する
         self.log_path: anyio.Path | None = anyio.Path(log_path) if isinstance(log_path, Path) else log_path
 
         # curl-cffi の非同期 HTTP クライアントのインスタンスを作成
-        self.http_client = self._create_http_client()
+        self.http_client = self._createHTTPClient()
 
         # close() が呼び出されたかどうかを追跡するフラグ
         ## 複数回 close() が呼び出されても安全に動作するようにするために使用する
         self._is_closed: bool = False
 
     @classmethod
-    def _create_http_client(cls) -> requests.AsyncSession[requests.Response]:
+    def _createHTTPClient(cls) -> requests.AsyncSession[requests.Response]:
         """
         curl-cffi の非同期 HTTP クライアントを生成する。
 
@@ -163,7 +169,7 @@ class NDGRClient:
             default_headers=False,
         )
 
-    def _export_cookies(self) -> dict[str, str]:
+    def _exportCookies(self) -> dict[str, str]:
         """
         現在の HTTP クライアントに保存されている Cookie を辞書として取得する。
 
@@ -175,7 +181,7 @@ class NDGRClient:
         return {key: value for key, value in cookie_items if value is not None}
 
     @staticmethod
-    def _import_cookies(http_client: requests.AsyncSession[requests.Response], cookies: dict[str, str]) -> None:
+    def _importCookies(http_client: requests.AsyncSession[requests.Response], cookies: dict[str, str]) -> None:
         """
         Cookie 辞書を指定した HTTP クライアントへ復元する。
 
@@ -187,7 +193,7 @@ class NDGRClient:
         for key, value in cookies.items():
             http_client.cookies.set(key, value, domain='.nicovideo.jp', path='/')
 
-    async def _recreate_http_client(
+    async def _recreateHTTPClient(
         self,
         reason: str,
         exception: BaseException | None = None,
@@ -202,11 +208,11 @@ class NDGRClient:
             exception (BaseException | None): 再生成のきっかけとなった例外
         """
 
-        preserved_cookies = self._export_cookies()
+        preserved_cookies = self._exportCookies()
         old_http_client = self.http_client
 
-        self.http_client = self._create_http_client()
-        self._import_cookies(self.http_client, preserved_cookies)
+        self.http_client = self._createHTTPClient()
+        self._importCookies(self.http_client, preserved_cookies)
 
         await self.print(f'Reinitializing HTTP session. Reason: {reason}')
         await self.print(Rule(characters='-', style=Style(color='#E33157')))
@@ -245,11 +251,11 @@ class NDGRClient:
     @property
     def is_logged_in(self) -> bool:
         """
-        ニコニコアカウントがログイン済みかどうかを返す
+        HTTP クライアントに user_session Cookie が設定されているかどうかを返す。
         """
         return 'user_session' in self.http_client.cookies
 
-    async def _validate_login_session(self) -> bool:
+    async def _validateLoginSession(self) -> bool:
         """
         現在の Cookie がニコニコ上でログイン済みとして扱われるかを確認する。
 
@@ -269,67 +275,31 @@ class NDGRClient:
         # ユーザー ID の有無をログイン済み判定に使う
         return 'x-niconico-id' in response.headers
 
-    async def login(
-        self, mail: str | None = None, password: str | None = None, cookies: dict[str, str] | None = None
-    ) -> dict[str, str] | None:
+    async def setCookies(self, cookies: dict[str, str]) -> bool:
         """
-        ニコニコアカウントにログインするか、既存の Cookie を HTTP クライアントに設定する
-        基本初回ログイン時以外は一度取得した Cookie を使い回して無駄なログインセッションが作成されるのを防ぐべき
-        ログインが成功すると Cookie 辞書を返す
+        ブラウザなどで取得した Cookie を設定し、ログイン状態を確認する。
 
         Args:
-            mail (str | None): ニコニコアカウントのメールアドレス
-            password (str | None): ニコニコアカウントのパスワード
-            cookies (dict[str, str] | None): 既存の Cookie 辞書
+            cookies (dict[str, str]): Cookie 名をキー、Cookie の値を値とする辞書
 
         Returns:
-            dict[str, str] | None: 現在 HTTP クライアントにセットされている Cookie 辞書 (ログインが失敗した場合は None を返す)
+            bool: 設定した Cookie でニコニコにログイン済みと判定された場合は True
 
         Raises:
-            ValueError: mail と password の両方、または cookies のいずれかが指定されていない場合
-            curl_cffi.requests.exceptions.HTTPError: ログインリクエストが失敗した場合
+            ValueError: OAuth 認証が指定されている場合
+            curl_cffi.requests.exceptions.HTTPError: ログイン確認リクエストが失敗した場合
         """
 
-        if (mail is None or password is None) and cookies is None:
-            raise ValueError('Either both mail and password, or cookies must be provided.')
-
-        # Cookie 辞書が指定されたとき、HTTP クライアントに Cookie を設定
-        if cookies is not None:
-            cookie_jar = self.http_client.cookies
-            for key, value in cookies.items():
-                cookie_jar.set(key, value, domain='.nicovideo.jp', path='/')
-
-            # 保存済み Cookie が現在も有効か確認
-            if await self._validate_login_session() is False:
-                return None
-
-        # メールアドレスとパスワードが指定されたとき、ログイン処理を実行
-        else:
-            assert mail is not None and password is not None
-            try:
-                # ログイン処理に悪影響を及ぼさないよう、既存の Cookie を削除
-                self.http_client.cookies.clear()
-                # この API にアクセスすると Cookie (user_session) が HTTP クライアントにセットされる
-                response = await self.http_client.post(
-                    'https://account.nicovideo.jp/api/v1/login',
-                    data={'mail': mail, 'password': password},
-                    timeout=15.0,
-                )
-                response.raise_for_status()
-                # ログイン API の応答ヘッダーに依存せず、通常ページで Cookie の有効性を確認
-                if await self._validate_login_session() is False:
-                    return None
-                await self.print('Login successful.', verbose_log=True)
-                await self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
-            except CurlHTTPError:
-                await self.print('Error during login:')
-                await self.print(traceback.format_exc())
-                await self.print(Rule(characters='-', style=Style(color='#E33157')))
-                raise
-
-        # 現在 HTTP クライアントにセットされている Cookie を返す
-        cookie_items = self.http_client.cookies.items()
-        return {k: v for k, v in cookie_items if v is not None}
+        # OAuth と Cookie で異なるアカウントを使う可能性があるため、認証方式は一方だけを指定する
+        if self.oauth is not None:
+            raise ValueError('Choose either OAuth or cookies.')
+        self.http_client.cookies.clear()
+        self._importCookies(self.http_client, cookies)
+        is_valid = await self._validateLoginSession()
+        # ログイン状態を確認できなかった場合は、HTTP クライアントから設定した Cookie を削除する
+        if is_valid is False:
+            self.http_client.cookies.clear()
+        return is_valid
 
     @classmethod
     async def getProgramIDsOnDate(cls, jikkyo_channel_id: str, date: date) -> list[str]:
@@ -498,7 +468,7 @@ class NDGRClient:
             この関数は番組の放送が終了するか例外が発生するまで終了しない
             """
 
-            # 視聴ページから NDGR View API の URI を取得する
+            # 視聴ページから番組情報を取得し、放送中かどうかを確認する
             nicolive_program_info = await self.fetchNicoLiveProgramInfo()
             if nicolive_program_info.status == 'ENDED':
                 # すでに放送を終了した番組はストリーミングを開始できない
@@ -515,7 +485,12 @@ class NDGRClient:
                 f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)'
             )
             await self.print(Rule(characters='-', style=Style(color='#E33157')))
-            view_api_uri = await self.fetchNDGRViewURI(nicolive_program_info.webSocketUrl)
+            # OAuth 認証を使う場合は、視聴 API から認証済みの WebSocket 接続先を取得する
+            ## この WebSocket 接続を使って、NDGR View API の URI を問い合わせる
+            web_socket_url = nicolive_program_info.webSocketUrl
+            if self.oauth is not None:
+                web_socket_url = await self.oauth.getWebSocketURL(nicolive_program_info.nicoliveProgramId)
+            view_api_uri = await self.fetchNDGRViewURI(web_socket_url)
 
             # NDGR View API への初回アクセスかどうかを表すフラグ
             is_first_time: bool = True
@@ -771,23 +746,23 @@ class NDGRClient:
                     ## 大半のケースでコメントキューの方が早く完了する (コメントは多い時だと 0.01 秒間隔で降ってくるため)
                     comment_queue_task = asyncio.create_task(comment_queue.get())
                     stream_task_event_queue_task = asyncio.create_task(stream_task_event_queue.get())
-                    done, _ = await asyncio.wait(
-                        [
-                            comment_queue_task,
-                            stream_task_event_queue_task,
-                            program_info_task,
-                            stream_activity_watchdog_task,
-                        ],
-                        return_when=asyncio.FIRST_COMPLETED,
-                    )
-                    # done に含まれなかった Queue getter タスクをキャンセルし、完了を待つ
-                    ## NOTE: asyncio.wait() が返ってからここまでの間に await がないため、
-                    ## CPython のシングルスレッドイベントループでは他のタスクが割り込む余地はない
-                    ## つまり「done に入っていなかったタスクがキャンセル前に完了する」ことは起こりえない
-                    for pending_task in [comment_queue_task, stream_task_event_queue_task]:
-                        if pending_task not in done:
-                            pending_task.cancel()
-                    await asyncio.gather(comment_queue_task, stream_task_event_queue_task, return_exceptions=True)
+                    try:
+                        done, _ = await asyncio.wait(
+                            [
+                                comment_queue_task,
+                                stream_task_event_queue_task,
+                                program_info_task,
+                                stream_activity_watchdog_task,
+                            ],
+                            return_when=asyncio.FIRST_COMPLETED,
+                        )
+                    finally:
+                        # 待機中にキャンセルされた場合も、未完了の Queue getter タスクを終了させる
+                        ## asyncio.wait() が返ってから cancel() まで await がないため、他のタスクが割り込む余地はない
+                        ## 完了済みタスクへの cancel() は結果を変更しないので、done のコメントをこの後で取り出せる
+                        comment_queue_task.cancel()
+                        stream_task_event_queue_task.cancel()
+                        await asyncio.gather(comment_queue_task, stream_task_event_queue_task, return_exceptions=True)
 
                     # asyncio.wait(FIRST_COMPLETED) の done セットには複数のタスクが含まれうる
                     ## set のイテレーション順は不定なため、例外を送出しうる制御タスクより先に
@@ -841,16 +816,18 @@ class NDGRClient:
         # コメント受信処理を開始
         while True:
             try:
-                async for comment in stream_comments_inner():
-                    # comment が 'ENDED' のときはこのメソッドでの処理を終了
-                    if comment == 'ENDED':
-                        return
-                    # comment が 'RESTART' のときは一度ジェネレータを中断し、新たに stream_comments_inner() を呼び出す
-                    elif comment == 'RESTART':
-                        break  # ここで break すると外側の while True: ループに戻る
-                    # comment が NDGRComment のときは yield する
-                    else:
-                        yield comment
+                # 番組切り替えや呼び出し元からの終了時も、内側のジェネレータを閉じて受信タスクを回収する
+                async with aclosing(stream_comments_inner()) as comments:
+                    async for comment in comments:
+                        # comment が 'ENDED' のときはこのメソッドでの処理を終了
+                        if comment == 'ENDED':
+                            return
+                        # comment が 'RESTART' のときは一度ジェネレータを中断し、新たに stream_comments_inner() を呼び出す
+                        elif comment == 'RESTART':
+                            break  # ここで break すると外側の while True: ループに戻る
+                        # comment が NDGRComment のときは yield する
+                        else:
+                            yield comment
             except KeyboardInterrupt:
                 raise
             except ValueError as ex:
@@ -870,7 +847,7 @@ class NDGRClient:
                 )
                 await self.print(traceback.format_exc())
                 await self.print(Rule(characters='-', style=Style(color='#E33157')))
-                await self._recreate_http_client('The NDGR watch page returned an empty WebSocket URL.', ex)
+                await self._recreateHTTPClient('The NDGR watch page returned an empty WebSocket URL.', ex)
                 await asyncio.sleep(self.STREAM_RETRY_DELAY_SECONDS)
                 continue
             except (CurlRequestException, OSError, TimeoutError, NDGRStreamingSessionError) as ex:
@@ -882,7 +859,7 @@ class NDGRClient:
                 await self.print('Unexpected streaming error. Reinitializing the session before retrying...')
                 await self.print(traceback.format_exc())
                 await self.print(Rule(characters='-', style=Style(color='#E33157')))
-                await self._recreate_http_client('The NDGR streaming session became unhealthy.', ex)
+                await self._recreateHTTPClient('The NDGR streaming session became unhealthy.', ex)
                 await asyncio.sleep(self.STREAM_RETRY_DELAY_SECONDS)
                 continue
 
@@ -898,7 +875,7 @@ class NDGRClient:
             AssertionError: 解析に失敗した場合
         """
 
-        # 視聴ページから NDGR View API の URI を取得する
+        # 視聴ページからダウンロード対象の番組情報を取得する
         nicolive_program_info = await self.fetchNicoLiveProgramInfo()
         await self.print(
             f'Title:  {nicolive_program_info.title} [{nicolive_program_info.status}] ({nicolive_program_info.nicoliveProgramId})'
@@ -909,7 +886,12 @@ class NDGRClient:
             f'({datetime.fromtimestamp(nicolive_program_info.endTime) - datetime.fromtimestamp(nicolive_program_info.openTime)}h)'
         )
         await self.print(Rule(characters='-', style=Style(color='#E33157')), verbose_log=True)
-        view_api_uri = await self.fetchNDGRViewURI(nicolive_program_info.webSocketUrl)
+        # OAuth 認証を使う場合は、視聴 API から認証済みの WebSocket 接続先を取得する
+        ## この WebSocket 接続を使って、NDGR View API の URI を問い合わせる
+        web_socket_url = nicolive_program_info.webSocketUrl
+        if self.oauth is not None:
+            web_socket_url = await self.oauth.getWebSocketURL(nicolive_program_info.nicoliveProgramId)
+        view_api_uri = await self.fetchNDGRViewURI(web_socket_url)
 
         # NDGR View API への初回アクセスかどうかを表すフラグ
         is_first_time: bool = True
@@ -1233,7 +1215,7 @@ class NDGRClient:
         if webSocketUrl == '':
             raise ValueError('webSocketUrl is empty.')
 
-        # ニコニコ生放送の視聴ページから取得した webSocketUrl に接続
+        # 視聴ページまたは視聴 API から取得した WebSocket URL に接続する
         async with websockets.connect(
             webSocketUrl,
             user_agent_header=self.HTTP_HEADERS['user-agent'],
@@ -1257,6 +1239,15 @@ class NDGRClient:
             while True:
                 message = await asyncio.wait_for(websocket.recv(), timeout=15)
                 data = json.loads(message)
+
+                # 視聴サーバーがエラーや切断を通知した場合は、通知された理由を含む例外を送出する
+                if data['type'] in ('error', 'disconnect'):
+                    raise NDGRStreamingSessionError(
+                        f'Watch session failed: {data.get("data", {}).get("code") or data.get("data", {}).get("reason", "UNKNOWN")}'
+                    )
+                # 視聴サーバーの ping メッセージに pong を返し、NDGR View API の URI が届くまで接続を維持する
+                if data['type'] == 'ping':
+                    await websocket.send(json.dumps({'type': 'pong'}))
 
                 # NDGR View API の URI を伝えるメッセージ
                 if data['type'] == 'messageServer':

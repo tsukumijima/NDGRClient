@@ -40,6 +40,50 @@ AWS 上で稼働していること、またこのような高度な仕組みは�
 
 ## Usage
 
+### Authentication
+
+#### Auth with OAuth
+
+継続収集には OAuth 認証を利用できます。  
+初回だけブラウザでニコニコアカウントを認可すると、以降は NDGRClient がトークンを自動更新して保存します。
+
+初回認可には、ニコニコから発行された OAuth クライアントの ID とシークレットが必要です。  
+現在の認可処理は KonomiTV 用の中継 API を使っているため、リダイレクト URI に `https://app.konomi.tv/api/redirect/niconico` を登録したクライアントの情報を指定してください。
+
+```bash
+poetry run python -m ndgr_client authorize --oauth-file /absolute/path/oauth.json
+```
+
+クライアント ID 、シークレットの順に入力し、表示された URL をブラウザで開いて認可してください。  
+環境変数 `NICONICO_CLIENT_ID` と `NICONICO_CLIENT_SECRET` に指定した値も使用できます。
+
+ブラウザとコマンドが別マシンの場合は、事前に `ssh -L 8765:127.0.0.1:8765 user@server` でポートを転送します。  
+ポートが使用中なら `--callback-port` で変更し、転送先のポートも合わせてください。認可の待ち時間は10分です。
+
+収集時は `stream` または `download` に `--oauth-file /absolute/path/oauth.json` を指定します。  
+同じ認証情報を使うプロセスには同じファイルを指定してください。  
+更新をファイルロックで直列化するため、ファイルを複製して別々に更新する運用は避けてください。  
+認可を取り消した場合や更新用トークンが無効になった場合は、`authorize` を再実行します。
+
+#### Auth with Cookie
+
+Cookie で認証する場合は、Cookie 名と値の JSON 辞書を保存したファイルを `--cookies-file /absolute/path/cookies.json` で指定します。  
+Cookie の期限切れはエラーになり、ブラウザで取得した新しい Cookie への差し替えが必要です。  
+OAuth と Cookie はいずれか一方を指定し、どちらも省略した場合は未認証で接続します。  
+
+> [!WARNING]  
+> NDGRClient 1.x にはメールアドレスとパスワードによるログイン API `login()` がありましたが、バックエンドのログイン API が廃止されたため、2.x では削除されています。  
+> ニコニコ側がログイン時に Cloudflare Turnstile を要求するように仕様変更したことで、2026年8月現在ではメアドとパスワードを投げるだけではログイン用 Cookie を取得できなくなっています。  
+> 今後も安定的にコメントを収集し続けるには OAuth 認証の方が望ましいです。
+
+> [!WARNING]
+> OAuth 認証情報ファイルにはクライアントのシークレットとトークンが含まれます。  
+> Cookie ファイルとともに Git や共有ストレージへ公開しないでください。  
+
+> [!IMPORTANT]
+> 保存先のフォルダには収集プロセスからの書き込み権限が必要です。  
+> Linux では OAuth 認証情報ファイルを所有者だけが読み書きできる権限で保存します。
+
 ### Streaming comments
 
 ![Screenshot](https://github.com/user-attachments/assets/d0d8765d-3f77-4bf2-a149-b979979e1104)
@@ -52,7 +96,7 @@ poetry run python -m ndgr_client stream <nicolive_program_id or jikkyo_id>
 終了するにはコンソールで `Ctrl+C` を入力してください。
 
 > [!TIP]
-> `--mail` オプションと `--password` オプションを付けると、ログインした状態でコメントを取得できます。
+> `--oauth-file` または `--cookies-file` を付けると、認証済みの状態でコメントを取得できます。
 
 > [!TIP]
 > `--verbose` オプションを付けると、詳細な動作ログが出力されます。
@@ -71,10 +115,12 @@ poetry run python -m ndgr_client download <nicolive_program_id or jikkyo_id> --o
 コメントは最新のものから過去に遡るようにまとめて取得され、取得されたコメントは随時コンソールに表示されます。
 
 > [!TIP]
-> `jikkyo_id` に `all` を指定すると、すべてのニコニコ実況チャンネルのコメントを一括でダウンロードできます。
+> `jikkyo_id` に `all` を指定すると、すべてのニコニコ実況チャンネルのコメントを一括でダウンロードできます。  
+> OAuth 認証で視聴 API が `PROGRAM_ENDED` を返したチャンネルは、スキップしたことを表示して次へ進みます。  
+> 認証失敗や通信障害はエラーとして扱い、処理を停止します。
 
 > [!TIP]
-> `--mail` オプションと `--password` オプションを付けると、ログインした状態でコメントを取得できます。  
+> `--oauth-file` または `--cookies-file` を付けると、認証済みの状態でコメントを取得できます。  
 > 放送が終了した番組のコメントをダウンロードするには、プレミアム会員アカウントへのログインが必要です。
 
 > [!TIP]

@@ -12,7 +12,8 @@ NDGR は従来の「WebSocket + JSON」方式のコメント受信を、「Proto
 - Protobuf は [n-air-app/nicolive-comment-protobuf](https://github.com/n-air-app/nicolive-comment-protobuf) の .proto から protoc + mypy-protobuf で生成 (`ndgr_client/proto/`)
 - CLI は Typer ベース。Typer 標準では async コマンドに対応していないため、`ndgr_client/utils.py` の `AsyncTyper` で対応させている
 - Lint/Format は Ruff (シングルクォート、`line-length = 120`)
-- 自動テスト・CI は現状なし (2026-07時点)。動作確認は CLI (`stream` / `download`) を実際に叩いて目視確認するのが基本
+- 自動テストは pytest と AnyIO の pytest プラグインで実行する (`poetry run task test`)。OAuth の異常系と CLI のスキップ処理に加え、jk1 のリアルタイム受信と過去ログ取得も毎回実際に行う。実通信は既定で未認証とし、`--oauth-file` で認証情報を指定できる。CI は未整備
+- クラスのメソッド (プロパティを除く) は snake_case ではなく lowerCamelCase で命名する (通常関数や入れ子関数、テストコードは snake_case で良い)
 
 ## 主要コマンド
 
@@ -25,12 +26,36 @@ poetry run python -m ndgr_client version
 
 poetry run task lint            # ruff check --fix .
 poetry run task format          # ruff format .
+poetry run task test            # pytest
 poetry run task update-proto    # .proto を取得し直して Python コード/mypy スタブを再生成
 ```
 
+## テスト
+
+`poetry install` で開発依存もインストールし、`poetry run task test` で全テストを実行する。  
+非同期テストには AnyIO の pytest プラグインを使い、asyncio で実行する。
+
+`tests/test_ndgr_client.py` は合成 Protobuf のフィールド変換、XML 表現、分割受信、過去ログの全ページ取得、視聴接続の再試行、キャンセル時のタスク回収、番組切り替えを検証する。  
+固定入力の検査では、失われると問題になる値や処理結果を具体的に照合し、呼び出し回数や型の一致だけで成功を判定しない。
+
+実通信テストも通常実行に含め、jk1 の現在の番組からリアルタイム受信と過去ログ取得を確認する。  
+既定では未認証で接続し、OAuth を検証するときだけ認証情報を指定する。
+
+```bash
+poetry run task test
+poetry run task test --oauth-file /absolute/path/oauth.json
+```
+
+リアルタイム受信は最大3分、過去ログ取得は最大5分でタイムアウトする。  
+番組切り替えや通信障害などで取得できなかった実行は、成功やスキップに変換せず失敗として扱う。  
+OAuth 認証情報は必要に応じて更新・保存するため、書き込み可能なファイルを指定する。
+
+初回認可と放送終了後のタイムシフト取得は、対象番組を指定して CLI で別途確認する。  
+README は利用者向けの導入・利用方法に限定し、開発用のテスト手順はこの節に記載する。
+
 ## ディレクトリ構成
 
-- `ndgr_client/ndgr_client.py`: `NDGRClient` クラス本体 (約1650行)。ログイン、番組情報取得、コメントストリーミング、過去ログダウンロード、XML 互換形式への変換まで全てここに実装されている
+- `ndgr_client/ndgr_client.py`: `NDGRClient` クラス本体 (約1650行)。`setCookies()` による Cookie 設定、番組情報取得、コメントストリーミング、過去ログダウンロード、XML 互換形式への変換まで全てここに実装されている
 - `ndgr_client/constants.py`: Pydantic モデル定義
 - `ndgr_client/protobuf_stream_reader.py`: Length-Delimited Protobuf Stream のパーサー
 - `ndgr_client/utils.py`: Typer に async コマンドを対応させる `AsyncTyper`
@@ -66,5 +91,5 @@ rev 固定なので変更した瞬間に下流が壊れるわけではないが�
 ## ログインセッション判定の経緯
 
 - 2026年6月中旬、ニコニコ側の仕様変更でログインページ (`account.nicovideo.jp/login`) が有効な `user_session` を持つ場合でも `x-niconico-id` ヘッダーを返さなくなり、有効な Cookie セッションを再利用しているにもかかわらず毎回ログイン失敗扱いになる不具合が発生した
-- 対応として `_validate_login_session()` (`ndgr_client.py`) を新設し、通常の認証済みページ (`https://www.nicovideo.jp/`) にアクセスして `x-niconico-id` ヘッダーの有無で判定する方式に変更した。保存済み Cookie の再利用時・パスワードログイン成功後の両方でこのメソッドを使っている
+- 対応として `_validateLoginSession()` (`ndgr_client.py`) を新設し、通常の認証済みページ (`https://www.nicovideo.jp/`) にアクセスして `x-niconico-id` ヘッダーの有無で判定する方式に変更した。`setCookies()` で渡された Cookie の検証にこのメソッドを使っている
 - ニコニコ側の認証まわりの仕様は今後も変更される可能性があるため、ログイン関連で不可解な挙動が出た場合は、まずレスポンスヘッダーの構造が変わっていないかを疑うこと
